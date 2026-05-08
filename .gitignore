@@ -7,3 +7,19 @@ dist-ssr
 .env
 .env.local
 .vite
+
+# Tokens privados — NUNCA enviar pro GitHub
+MEUS-TOKENS-PRIVADO.txt
+*-TOKENS-PRIVADO.txt
+tokens.txt
+tokens-privados.txt
+
+# Variáveis de ambiente
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Credenciais
+credenciais.json
+secrets.json

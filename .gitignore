@@ -12,9 +12,8 @@ dist-ssr
 MEUS-TOKENS-PRIVADO.txt
 *-TOKENS-PRIVADO.txt
 tokens.txt
-tokens-privados.txt
 
-# Variáveis de ambiente
+# Variáveis de ambiente (proteção extra)
 .env
 .env.local
 .env.production

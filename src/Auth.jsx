@@ -171,8 +171,8 @@ export default function Auth() {
               </div>
               <div className="bg-slate-800/60 border border-slate-600 rounded-lg p-3">
                 <p className="text-xs text-slate-200 leading-relaxed">
-                  🔑 <span className="text-emerald-400 font-medium">Acesso por token único.</span><br/>
-                  Cada token funciona apenas uma vez para criar a conta.
+                  🔑 <span className="text-emerald-400 font-medium">Acesso restrito por token.</span><br/>
+                  Como esse site é visível a todos, algumas permissões são restritas. Entre em contato com o Filipe sobre dúvidas e o seu TOKEN.
                 </p>
               </div>
             </>

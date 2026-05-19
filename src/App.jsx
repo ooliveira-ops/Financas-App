@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Wallet, Calendar, X, TrendingUp, TrendingDown, Sparkles,
   Repeat, Home, PieChart as PieIcon, AlertCircle, Check, GraduationCap,
   Utensils, User, Car, ShoppingBag, Heart, Plane, Coffee, Tag, LogOut, Loader2,
-  Layers, FastForward, Clock, History, CheckCircle2, Bell, Zap,
+  Layers, FastForward, Clock, History, CheckCircle2, Bell, Zap, FileDown,
 } from "lucide-react";
 import { supabase } from "./supabase";
 import Auth from "./Auth";
@@ -210,13 +210,11 @@ function AppLogado({ session }) {
   };
 
   const adicionarParcelamento = async (n) => {
-    // Valida inputs
     if (!n.descricao || !n.valor_total || !n.parcelas_total) {
       alert("Preencha todos os campos");
       return;
     }
 
-    // Insere parcelamento NO BANCO (trigger cria 1ª parcela automaticamente)
     const { data, error } = await supabase.from("parcelamentos").insert({
       descricao: n.descricao,
       valor_total: parseFloat(n.valor_total),
@@ -236,10 +234,7 @@ function AppLogado({ session }) {
     }
 
     if (data) {
-      // Adiciona localmente
       setParcelamentos([...parcelamentos, data]);
-
-      // AGUARDA 1.5s e recarrega despesas (trigger criou a 1ª parcela)
       setTimeout(async () => {
         const { data: novasDespesas } = await supabase
           .from("despesas")
@@ -283,10 +278,7 @@ function AppLogado({ session }) {
     }
 
     if (data) {
-      // Atualiza localmente
       setParcelamentos(parcelamentos.map((p) => (p.id === id ? data : p)));
-
-      // Recarrega despesas
       setTimeout(async () => {
         const { data: novasDespesas } = await supabase
           .from("despesas")
@@ -336,7 +328,6 @@ function AppLogado({ session }) {
   }), [despesasPendentes]);
   const totalPendentesMes = useMemo(() => despesasPendentesMesAtual.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPendentesMesAtual]);
 
-  // 🎨 GRÁFICO ROBUSTO
   const despesasPorCategoria = useMemo(() => {
     const agrupado = {};
     despesasPagasMesAtual.forEach((d) => {
@@ -443,7 +434,7 @@ function AppLogado({ session }) {
       </nav>
 
       <main className="relative z-10 px-6 md:px-12 py-8 max-w-6xl mx-auto">
-        {aba === "home" && <HomeAba quote={quote} saldo={saldo} totalReceitasMes={totalReceitasMes} totalDespesasMes={totalDespesasMes} totalPendentesMes={totalPendentesMes} despesasPorCategoria={despesasPorCategoria} proximasAssinaturas={proximasAssinaturas} />}
+        {aba === "home" && <HomeAba quote={quote} saldo={saldo} totalReceitasMes={totalReceitasMes} totalDespesasMes={totalDespesasMes} totalPendentesMes={totalPendentesMes} despesasPorCategoria={despesasPorCategoria} proximasAssinaturas={proximasAssinaturas} receitas={receitas} despesas={despesas} assinaturas={assinaturas} parcelamentos={parcelamentos} userNome={userNome} />}
         {aba === "despesas" && <DespesasAba despesasPendentes={despesasPendentes} despesasPagas={despesasPagas} categorias={categorias} totalDespesasPagasMes={totalDespesasPagasMes} totalPendentesMes={totalPendentesMes} despesasPorCategoria={despesasPorCategoria} onAdicionar={() => setModalDespesa(true)} onRemover={removerDespesa} onMarcarPaga={marcarComoPaga} />}
         {aba === "parcelamentos" && <ParcelamentosAba parcelamentos={parcelamentos} categorias={categorias} onAdicionar={() => setModalParcelamento(true)} onRemover={removerParcelamento} onMarcarPaga={marcarParcelaComoPaga} />}
         {aba === "receitas" && <ReceitasAba receitas={receitas} totalReceitasMes={totalReceitasMes} onAdicionar={() => setModalReceita(true)} onRemover={removerReceita} />}
@@ -459,47 +450,227 @@ function AppLogado({ session }) {
   );
 }
 
-function HomeAba({ quote, saldo, totalReceitasMes, totalDespesasMes, totalPendentesMes, despesasPorCategoria, proximasAssinaturas }) {
+function HomeAba({ quote, saldo, totalReceitasMes, totalDespesasMes, totalPendentesMes, despesasPorCategoria, proximasAssinaturas, receitas, despesas, assinaturas, parcelamentos, userNome }) {
+  
+  const totalDespesas = despesas.length;
+  const despesasPagasCount = despesas.filter(d => d.status === 'paga').length;
+  
+  const totalParcelamentos = parcelamentos.length;
+  const parcelamentosAtivos = parcelamentos.filter(p => p.status === 'ativo').length;
+  
+  const totalReceitas = receitas.length;
+  const receitasMes = receitas.filter(r => (r.mes || mesAtual()) === mesAtual()).length;
+ 
+  const gerarRelatorio = async () => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      await import('jspdf-autotable');
+ 
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPos = 20;
+ 
+      doc.setFontSize(24);
+      doc.text('Relatório de Despesas', pageWidth / 2, yPos, { align: 'center' });
+      
+      yPos += 15;
+      doc.setFontSize(10);
+      doc.text(`Usuário: ${userNome}`, 20, yPos);
+      yPos += 7;
+      doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 20, yPos);
+      yPos += 7;
+      doc.text(`Mês: ${nomeMes(mesAtual())}`, 20, yPos);
+      yPos += 15;
+ 
+      doc.setFontSize(14);
+      doc.text('📊 Resumo Financeiro', 20, yPos);
+      yPos += 10;
+ 
+      const resumoData = [
+        ['Receitas', formatBRL(totalReceitasMes)],
+        ['Despesas Pagas', formatBRL(totalDespesasMes)],
+        ['A Pagar', formatBRL(totalPendentesMes)],
+        ['Saldo', formatBRL(saldo)],
+      ];
+ 
+      doc.autoTable({
+        startY: yPos,
+        head: [['Item', 'Valor']],
+        body: resumoData,
+        theme: 'grid',
+        didDrawPage: function(data) {
+          yPos = data.lastAutoTable.finalY + 10;
+        },
+      });
+ 
+      yPos = doc.lastAutoTable.finalY + 15;
+ 
+      if (receitasMes > 0) {
+        doc.setFontSize(14);
+        doc.text('💰 Receitas', 20, yPos);
+        yPos += 10;
+ 
+        const receitasData = receitas
+          .filter(r => (r.mes || mesAtual()) === mesAtual())
+          .map(r => [r.fonte, formatBRL(r.valor)]);
+ 
+        doc.autoTable({
+          startY: yPos,
+          head: [['Fonte', 'Valor']],
+          body: receitasData,
+          theme: 'grid',
+          didDrawPage: function(data) {
+            yPos = data.lastAutoTable.finalY + 10;
+          },
+        });
+ 
+        yPos = doc.lastAutoTable.finalY + 15;
+      }
+ 
+      if (despesasPagasCount > 0) {
+        doc.setFontSize(14);
+        doc.text('✅ Despesas Pagas', 20, yPos);
+        yPos += 10;
+ 
+        const despesasPagasData = despesas
+          .filter(d => d.status === 'paga' && d.data_pagamento && d.data_pagamento.startsWith(mesAtual()))
+          .map(d => [d.descricao, formatarDataBR(d.data_pagamento), formatBRL(d.valor)]);
+ 
+        doc.autoTable({
+          startY: yPos,
+          head: [['Descrição', 'Data', 'Valor']],
+          body: despesasPagasData,
+          theme: 'grid',
+          didDrawPage: function(data) {
+            yPos = data.lastAutoTable.finalY + 10;
+          },
+        });
+ 
+        yPos = doc.lastAutoTable.finalY + 15;
+      }
+ 
+      const despesasPendentes = despesas.filter(d => d.status === 'pendente' || !d.status);
+      if (despesasPendentes.length > 0) {
+        doc.setFontSize(14);
+        doc.text('⏳ Despesas Pendentes', 20, yPos);
+        yPos += 10;
+ 
+        const despesasPendentesData = despesasPendentes
+          .filter(d => {
+            const dataRef = d.data_vencimento || d.data;
+            return dataRef && dataRef.startsWith(mesAtual());
+          })
+          .map(d => [d.descricao, formatarDataBR(d.data_vencimento || d.data), formatBRL(d.valor)]);
+ 
+        doc.autoTable({
+          startY: yPos,
+          head: [['Descrição', 'Vencimento', 'Valor']],
+          body: despesasPendentesData,
+          theme: 'grid',
+          didDrawPage: function(data) {
+            yPos = data.lastAutoTable.finalY + 10;
+          },
+        });
+ 
+        yPos = doc.lastAutoTable.finalY + 15;
+      }
+ 
+      if (assinaturas.length > 0) {
+        doc.setFontSize(14);
+        doc.text('🔄 Assinaturas Mensais', 20, yPos);
+        yPos += 10;
+ 
+        const assinaturasData = assinaturas.map(a => [a.nome, formatBRL(a.valor)]);
+ 
+        doc.autoTable({
+          startY: yPos,
+          head: [['Nome', 'Valor']],
+          body: assinaturasData,
+          theme: 'grid',
+          didDrawPage: function(data) {
+            yPos = data.lastAutoTable.finalY + 10;
+          },
+        });
+ 
+        yPos = doc.lastAutoTable.finalY + 15;
+      }
+ 
+      if (parcelamentos.length > 0) {
+        doc.setFontSize(14);
+        doc.text('📅 Parcelamentos', 20, yPos);
+        yPos += 10;
+ 
+        const parcelamentosData = parcelamentos.map(p => [
+          p.descricao,
+          `${p.parcelas_pagas}/${p.parcelas_total}`,
+          formatBRL(p.valor_total),
+          p.status === 'ativo' ? 'Ativo' : 'Finalizado'
+        ]);
+ 
+        doc.autoTable({
+          startY: yPos,
+          head: [['Descrição', 'Progresso', 'Valor Total', 'Status']],
+          body: parcelamentosData,
+          theme: 'grid',
+          didDrawPage: function(data) {
+            yPos = data.lastAutoTable.finalY + 10;
+          },
+        });
+      }
+ 
+      doc.save(`relatorio-despesas-${mesAtual()}.pdf`);
+      alert('✅ Relatório gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      alert('❌ Erro ao gerar relatório: ' + error.message);
+    }
+  };
+ 
   return (
     <div className="space-y-10">
       <section className="animate-fadeInUp delay-1 py-12 text-center">
         <p className="font-display text-3xl italic leading-tight text-amber-50">"{quote.text}"</p>
         {quote.author && <p className="font-body text-sm text-amber-100/60 mt-3">— {quote.author}</p>}
       </section>
+ 
       <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <CardResumo label="Receitas" valor={totalReceitasMes} icon={TrendingUp} cor="text-emerald-300" delay={2} />
         <CardResumo label="Pago" valor={totalDespesasMes} icon={CheckCircle2} cor="text-rose-300" delay={3} />
         <CardResumo label="A pagar" valor={totalPendentesMes} icon={Clock} cor="text-amber-300" delay={3} />
         <CardResumo label="Saldo" valor={saldo} icon={Wallet} cor={saldo >= 0 ? "text-amber-300" : "text-rose-400"} destaque delay={4} />
       </section>
+ 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="animate-fadeInUp delay-5 bg-amber-100/[0.02] border border-amber-100/10 rounded-2xl p-6">
-          <h3 className="font-display text-xl italic text-amber-100 mb-6">Gastos por categoria</h3>
-          {despesasPorCategoria.length === 0 ? (
-            <div className="h-[240px] flex items-center justify-center"><p className="font-body text-amber-100/40">Sem gastos</p></div>
-          ) : (
-            <div style={{ width: "100%", height: 240 }}>
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={despesasPorCategoria}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={90}
-                    paddingAngle={3}
-                    dataKey="valor"
-                    nameKey="nome"
-                  >
-                    {despesasPorCategoria.map((entry, idx) => (
-                      <Cell key={`cell-${idx}`} fill={entry.cor} stroke="none" />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+        <div className="animate-fadeInUp delay-5 bg-amber-100/[0.02] border border-amber-100/10 rounded-2xl p-6 space-y-4">
+          <h3 className="font-display text-xl italic text-amber-100">Visão Geral</h3>
+ 
+          <div className="p-4 bg-amber-100/[0.03] rounded-lg border border-amber-100/5">
+            <div className="font-body text-sm text-amber-100/70 mb-2">💳 Despesas</div>
+            <div className="font-mono num-tabular text-lg text-rose-300">{despesasPagasCount} de {totalDespesas} pagas</div>
+            <div className="text-xs text-amber-100/50 mt-1">Total: {formatBRL(despesas.reduce((s, d) => s + parseFloat(d.valor || 0), 0))}</div>
+          </div>
+ 
+          <div className="p-4 bg-amber-100/[0.03] rounded-lg border border-amber-100/5">
+            <div className="font-body text-sm text-amber-100/70 mb-2">📅 Parcelamentos</div>
+            <div className="font-mono num-tabular text-lg text-amber-300">{parcelamentosAtivos} ativo{parcelamentosAtivos !== 1 ? 's' : ''}</div>
+            <div className="text-xs text-amber-100/50 mt-1">Total: {totalParcelamentos}</div>
+          </div>
+ 
+          <div className="p-4 bg-amber-100/[0.03] rounded-lg border border-amber-100/5">
+            <div className="font-body text-sm text-amber-100/70 mb-2">💰 Receitas</div>
+            <div className="font-mono num-tabular text-lg text-emerald-300">{receitasMes} este mês</div>
+            <div className="text-xs text-amber-100/50 mt-1">Total: {formatBRL(totalReceitasMes)}</div>
+          </div>
+ 
+          <button 
+            onClick={gerarRelatorio}
+            className="w-full mt-4 bg-gradient-to-r from-amber-400 to-amber-300 text-[#0a0a0f] py-3 rounded-lg font-body font-semibold hover:from-amber-300 hover:to-amber-200 transition-all flex items-center justify-center gap-2"
+          >
+            <FileDown size={16} />
+            Gerar Relatório de Despesas
+          </button>
         </div>
+ 
         <div className="animate-fadeInUp delay-5 bg-amber-100/[0.02] border border-amber-100/10 rounded-2xl p-6">
           <h3 className="font-display text-xl italic text-amber-100 mb-6">Próximas assinaturas</h3>
           {proximasAssinaturas.length === 0 ? (
@@ -716,8 +887,6 @@ function AssinaturasAba({ assinaturas, total, onAdicionar, onRemover }) {
     </div>
   );
 }
-
-// ===== MODALS =====
 
 function ModalReceita({ onFechar, onSalvar }) {
   const [fonte, setFonte] = useState(""); const [valor, setValor] = useState(""); const [salvando, setSalvando] = useState(false);

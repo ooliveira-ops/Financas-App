@@ -135,7 +135,10 @@ function AppLogado({ session }) {
       setCarregandoDados(true);
       await carregarTudo();
       setCarregandoDados(false);
-      setQuote(QUOTES[0]);
+      
+      // 🎲 QUOTE ALEATÓRIA TODA VEZ QUE ABRE O APP
+      const indiceAleatorio = Math.floor(Math.random() * QUOTES.length);
+      setQuote(QUOTES[indiceAleatorio]);
     };
     carregar();
   }, [userId]);
@@ -207,18 +210,88 @@ function AppLogado({ session }) {
   };
 
   const adicionarParcelamento = async (n) => {
-    const dataBase = new Date(n.dataInicio + "T12:00:00");
+    // Valida inputs
+    if (!n.descricao || !n.valor_total || !n.parcelas_total) {
+      alert("Preencha todos os campos");
+      return;
+    }
+
+    // Insere parcelamento NO BANCO (trigger cria 1ª parcela automaticamente)
     const { data, error } = await supabase.from("parcelamentos").insert({
-      ...n,
-      user_id: userId,
+      descricao: n.descricao,
+      valor_total: parseFloat(n.valor_total),
+      parcelas_total: parseInt(n.parcelas_total),
       parcelas_pagas: 0,
+      valor_pago: 0,
+      user_id: userId,
       proxima_parcela_data: n.dataInicio,
+      categoria_id: null,
+      status: 'ativo',
     }).select().single();
-    if (!error && data) {
+
+    if (error) {
+      console.error("Erro ao criar parcelamento:", error.message);
+      alert("Erro ao criar parcelamento: " + error.message);
+      return;
+    }
+
+    if (data) {
+      // Adiciona localmente
       setParcelamentos([...parcelamentos, data]);
+
+      // AGUARDA 1.5s e recarrega despesas (trigger criou a 1ª parcela)
+      setTimeout(async () => {
+        const { data: novasDespesas } = await supabase
+          .from("despesas")
+          .select("*")
+          .eq("user_id", userId);
+        setDespesas(novasDespesas || []);
+      }, 1500);
+    }
+  };
+
+  const marcarParcelaComoPaga = async (id) => {
+    const parc = parcelamentos.find(p => p.id === id);
+    if (!parc) {
+      alert("Parcelamento não encontrado");
+      return;
+    }
+
+    if (parc.parcelas_pagas >= parc.parcelas_total) {
+      alert("Todas as parcelas já foram pagas!");
+      return;
+    }
+
+    const novasParcelas = parc.parcelas_pagas + 1;
+    const novoValorPago = (parc.valor_pago || 0) + (parc.valor_total / parc.parcelas_total);
+
+    const { data, error } = await supabase
+      .from("parcelamentos")
+      .update({
+        parcelas_pagas: novasParcelas,
+        valor_pago: novoValorPago,
+        status: novasParcelas >= parc.parcelas_total ? 'finalizado' : 'ativo'
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erro ao marcar parcela como paga:", error.message);
+      alert("Erro: " + error.message);
+      return;
+    }
+
+    if (data) {
+      // Atualiza localmente
+      setParcelamentos(parcelamentos.map((p) => (p.id === id ? data : p)));
+
       // Recarrega despesas
       setTimeout(async () => {
-        const { data: novasDespesas } = await supabase.from("despesas").select("*").eq("user_id", userId);
+        const { data: novasDespesas } = await supabase
+          .from("despesas")
+          .select("*")
+          .eq("user_id", userId);
         setDespesas(novasDespesas || []);
       }, 500);
     }
@@ -227,22 +300,6 @@ function AppLogado({ session }) {
   const removerParcelamento = async (id) => {
     const { error } = await supabase.from("parcelamentos").delete().eq("id", id);
     if (!error) setParcelamentos(parcelamentos.filter((p) => p.id !== id));
-  };
-
-  const marcarParcelaComoPaga = async (id) => {
-    const parc = parcelamentos.find(p => p.id === id);
-    if (!parc) return;
-    
-    const { data, error } = await supabase
-      .from("parcelamentos")
-      .update({ parcelas_pagas: parc.parcelas_pagas + 1, valor_pago: (parc.valor_pago || 0) + (parc.valor_total / parc.parcelas_total) })
-      .eq("id", id)
-      .select()
-      .single();
-    
-    if (!error && data) {
-      setParcelamentos(parcelamentos.map((p) => (p.id === id ? data : p)));
-    }
   };
 
   const adicionarCategoria = async (n) => {
@@ -296,7 +353,7 @@ function AppLogado({ session }) {
   }, [despesasPagasMesAtual, categorias]);
 
   const proximasAssinaturas = useMemo(() => {
-    const hoje = new Date(); 
+    const hoje = new Date();
     const diaH = hoje.getDate();
     return [...assinaturas]
       .map((a) => {

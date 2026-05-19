@@ -464,6 +464,7 @@ function HomeAba({ quote, saldo, totalReceitasMes, totalDespesasMes, totalPenden
     <div className="space-y-10">
       <section className="animate-fadeInUp delay-1 py-12 text-center">
         <p className="font-display text-3xl italic leading-tight text-amber-50">"{quote.text}"</p>
+        {quote.author && <p className="font-body text-sm text-amber-100/60 mt-3">— {quote.author}</p>}
       </section>
       <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <CardResumo label="Receitas" valor={totalReceitasMes} icon={TrendingUp} cor="text-emerald-300" delay={2} />

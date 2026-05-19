@@ -10,8 +10,35 @@ import { supabase } from "./supabase";
 import Auth from "./Auth";
 
 const QUOTES = [
+  { text: "Tudo posso naquele que me fortalece.", author: "Filipenses 4:13" },
+  { text: "O Senhor é o meu pastor e nada me faltará.", author: "Salmos 23:1" },
+  { text: "Porque sou eu que conheço os planos que tenho para vocês.", author: "Jeremias 29:11" },
+  { text: "Confie no Senhor de todo o seu coração.", author: "Provérbios 3:5" },
+  { text: "Honre o Senhor com a sua riqueza e com as primícias.", author: "Provérbios 3:9" },
+  { text: "Não acumulem para si tesouros na terra.", author: "Mateus 6:19" },
+  { text: "O amor ao dinheiro é a raiz de todos os males.", author: "1 Timóteo 6:10" },
+  { text: "Quem dá ao pobre empresta ao Senhor.", author: "Provérbios 19:17" },
+  { text: "Sede diligentes nos negócios, ferventes no espírito.", author: "Romanos 12:11" },
+  { text: "O trabalho de mãos diligentes traz riqueza.", author: "Provérbios 10:4" },
+  { text: "Busquem primeiro o reino de Deus e a sua justiça.", author: "Mateus 6:33" },
+  { text: "Dê, e lhe será dado; uma boa medida.", author: "Lucas 6:38" },
+  { text: "Os planos do diligente levam à abundância.", author: "Provérbios 21:5" },
+  { text: "Bem-aventurado o homem que teme ao Senhor e se deleita nos seus mandamentos.", author: "Salmos 112:1" },
+  { text: "Não vos preocupeis com o dia de amanhã.", author: "Mateus 6:34" },
   { text: "Hoje você está mais perto do que ontem.", author: "" },
   { text: "A persistência realiza o impossível.", author: "Provérbio chinês" },
+  { text: "O sucesso é a soma de pequenos esforços repetidos dia após dia.", author: "Robert Collier" },
+  { text: "Não espere por uma crise para descobrir o que é importante em sua vida.", author: "Platão" },
+  { text: "A disciplina é a ponte entre objetivos e conquistas.", author: "Jim Rohn" },
+  { text: "Cuide dos centavos, que os reais cuidarão de si mesmos.", author: "Benjamin Franklin" },
+  { text: "O futuro pertence àqueles que acreditam na beleza de seus sonhos.", author: "Eleanor Roosevelt" },
+  { text: "Você é mais forte do que pensa, mais capaz do que imagina.", author: "" },
+  { text: "A jornada de mil milhas começa com um único passo.", author: "Lao-Tsé" },
+  { text: "Não conte os dias, faça os dias contarem.", author: "Muhammad Ali" },
+  { text: "Investir em conhecimento rende sempre os melhores juros.", author: "Benjamin Franklin" },
+  { text: "Pequenos passos todos os dias somam grandes conquistas.", author: "" },
+  { text: "A verdadeira riqueza é a saúde, não peças de ouro e prata.", author: "Mahatma Gandhi" },
+  { text: "Acredite que você pode, e você já está no meio do caminho.", author: "Theodore Roosevelt" },
 ];
 
 const ICONS_MAP = {

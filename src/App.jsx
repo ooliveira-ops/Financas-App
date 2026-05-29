@@ -135,8 +135,6 @@ function AppLogado({ session }) {
       setCarregandoDados(true);
       await carregarTudo();
       setCarregandoDados(false);
-      
-      // 🎲 QUOTE ALEATÓRIA TODA VEZ QUE ABRE O APP
       const indiceAleatorio = Math.floor(Math.random() * QUOTES.length);
       setQuote(QUOTES[indiceAleatorio]);
     };
@@ -247,15 +245,8 @@ function AppLogado({ session }) {
 
   const marcarParcelaComoPaga = async (id) => {
     const parc = parcelamentos.find(p => p.id === id);
-    if (!parc) {
-      alert("Parcelamento não encontrado");
-      return;
-    }
-
-    if (parc.parcelas_pagas >= parc.parcelas_total) {
-      alert("Todas as parcelas já foram pagas!");
-      return;
-    }
+    if (!parc) { alert("Parcelamento não encontrado"); return; }
+    if (parc.parcelas_pagas >= parc.parcelas_total) { alert("Todas as parcelas já foram pagas!"); return; }
 
     const novasParcelas = parc.parcelas_pagas + 1;
     const novoValorPago = (parc.valor_pago || 0) + (parc.valor_total / parc.parcelas_total);
@@ -271,19 +262,12 @@ function AppLogado({ session }) {
       .select()
       .single();
 
-    if (error) {
-      console.error("Erro ao marcar parcela como paga:", error.message);
-      alert("Erro: " + error.message);
-      return;
-    }
+    if (error) { console.error("Erro:", error.message); alert("Erro: " + error.message); return; }
 
     if (data) {
       setParcelamentos(parcelamentos.map((p) => (p.id === id ? data : p)));
       setTimeout(async () => {
-        const { data: novasDespesas } = await supabase
-          .from("despesas")
-          .select("*")
-          .eq("user_id", userId);
+        const { data: novasDespesas } = await supabase.from("despesas").select("*").eq("user_id", userId);
         setDespesas(novasDespesas || []);
       }, 500);
     }
@@ -360,17 +344,14 @@ function AppLogado({ session }) {
     hoje.setHours(0, 0, 0, 0);
     const limite = new Date(hoje);
     limite.setDate(limite.getDate() + 7);
-
     const vencidas = [];
     const vencendo = [];
-
     despesasPendentes.forEach((d) => {
       if (!d.data_vencimento) return;
       const venc = new Date(d.data_vencimento + "T00:00:00");
       if (venc < hoje) vencidas.push(d);
       else if (venc <= limite) vencendo.push(d);
     });
-
     return { vencidas, vencendo };
   }, [despesasPendentes]);
 
@@ -451,28 +432,27 @@ function AppLogado({ session }) {
 }
 
 function HomeAba({ quote, saldo, totalReceitasMes, totalDespesasMes, totalPendentesMes, despesasPorCategoria, proximasAssinaturas, receitas, despesas, assinaturas, parcelamentos, userNome }) {
-  
+
   const totalDespesas = despesas.length;
   const despesasPagasCount = despesas.filter(d => d.status === 'paga').length;
-  
   const totalParcelamentos = parcelamentos.length;
   const parcelamentosAtivos = parcelamentos.filter(p => p.status === 'ativo').length;
-  
   const totalReceitas = receitas.length;
   const receitasMes = receitas.filter(r => (r.mes || mesAtual()) === mesAtual()).length;
- 
+
+  // ✅ CORREÇÃO: autoTable importado como função standalone (compatível com Vite/ESM)
   const gerarRelatorio = async () => {
     try {
       const { jsPDF } = await import('jspdf');
-      await import('jspdf-autotable');
- 
+      const autoTable = (await import('jspdf-autotable')).default;
+
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
       let yPos = 20;
- 
+
       doc.setFontSize(24);
       doc.text('Relatório de Despesas', pageWidth / 2, yPos, { align: 'center' });
-      
+
       yPos += 15;
       doc.setFontSize(10);
       doc.text(`Usuário: ${userNome}`, 20, yPos);
@@ -481,188 +461,143 @@ function HomeAba({ quote, saldo, totalReceitasMes, totalDespesasMes, totalPenden
       yPos += 7;
       doc.text(`Mês: ${nomeMes(mesAtual())}`, 20, yPos);
       yPos += 15;
- 
+
       doc.setFontSize(14);
-      doc.text('📊 Resumo Financeiro', 20, yPos);
+      doc.text('Resumo Financeiro', 20, yPos);
       yPos += 10;
- 
-      const resumoData = [
-        ['Receitas', formatBRL(totalReceitasMes)],
-        ['Despesas Pagas', formatBRL(totalDespesasMes)],
-        ['A Pagar', formatBRL(totalPendentesMes)],
-        ['Saldo', formatBRL(saldo)],
-      ];
- 
-      doc.autoTable({
+
+      autoTable(doc, {
         startY: yPos,
         head: [['Item', 'Valor']],
-        body: resumoData,
+        body: [
+          ['Receitas', formatBRL(totalReceitasMes)],
+          ['Despesas Pagas', formatBRL(totalDespesasMes)],
+          ['A Pagar', formatBRL(totalPendentesMes)],
+          ['Saldo', formatBRL(saldo)],
+        ],
         theme: 'grid',
-        didDrawPage: function(data) {
-          yPos = data.lastAutoTable.finalY + 10;
-        },
       });
- 
       yPos = doc.lastAutoTable.finalY + 15;
- 
-      if (receitasMes > 0) {
+
+      const receitasMesData = receitas.filter(r => (r.mes || mesAtual()) === mesAtual());
+      if (receitasMesData.length > 0) {
         doc.setFontSize(14);
-        doc.text('💰 Receitas', 20, yPos);
+        doc.text('Receitas', 20, yPos);
         yPos += 10;
- 
-        const receitasData = receitas
-          .filter(r => (r.mes || mesAtual()) === mesAtual())
-          .map(r => [r.fonte, formatBRL(r.valor)]);
- 
-        doc.autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Fonte', 'Valor']],
-          body: receitasData,
+          body: receitasMesData.map(r => [r.fonte, formatBRL(r.valor)]),
           theme: 'grid',
-          didDrawPage: function(data) {
-            yPos = data.lastAutoTable.finalY + 10;
-          },
         });
- 
         yPos = doc.lastAutoTable.finalY + 15;
       }
- 
-      if (despesasPagasCount > 0) {
+
+      const despesasPagasData = despesas.filter(d => d.status === 'paga' && d.data_pagamento?.startsWith(mesAtual()));
+      if (despesasPagasData.length > 0) {
         doc.setFontSize(14);
-        doc.text('✅ Despesas Pagas', 20, yPos);
+        doc.text('Despesas Pagas', 20, yPos);
         yPos += 10;
- 
-        const despesasPagasData = despesas
-          .filter(d => d.status === 'paga' && d.data_pagamento && d.data_pagamento.startsWith(mesAtual()))
-          .map(d => [d.descricao, formatarDataBR(d.data_pagamento), formatBRL(d.valor)]);
- 
-        doc.autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Descrição', 'Data', 'Valor']],
-          body: despesasPagasData,
+          body: despesasPagasData.map(d => [d.descricao, formatarDataBR(d.data_pagamento), formatBRL(d.valor)]),
           theme: 'grid',
-          didDrawPage: function(data) {
-            yPos = data.lastAutoTable.finalY + 10;
-          },
         });
- 
         yPos = doc.lastAutoTable.finalY + 15;
       }
- 
-      const despesasPendentes = despesas.filter(d => d.status === 'pendente' || !d.status);
-      if (despesasPendentes.length > 0) {
+
+      const despesasPendentesData = despesas.filter(d =>
+        (d.status === 'pendente' || !d.status) && (d.data_vencimento || d.data)?.startsWith(mesAtual())
+      );
+      if (despesasPendentesData.length > 0) {
         doc.setFontSize(14);
-        doc.text('⏳ Despesas Pendentes', 20, yPos);
+        doc.text('Despesas Pendentes', 20, yPos);
         yPos += 10;
- 
-        const despesasPendentesData = despesasPendentes
-          .filter(d => {
-            const dataRef = d.data_vencimento || d.data;
-            return dataRef && dataRef.startsWith(mesAtual());
-          })
-          .map(d => [d.descricao, formatarDataBR(d.data_vencimento || d.data), formatBRL(d.valor)]);
- 
-        doc.autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Descrição', 'Vencimento', 'Valor']],
-          body: despesasPendentesData,
+          body: despesasPendentesData.map(d => [d.descricao, formatarDataBR(d.data_vencimento || d.data), formatBRL(d.valor)]),
           theme: 'grid',
-          didDrawPage: function(data) {
-            yPos = data.lastAutoTable.finalY + 10;
-          },
         });
- 
         yPos = doc.lastAutoTable.finalY + 15;
       }
- 
+
       if (assinaturas.length > 0) {
         doc.setFontSize(14);
-        doc.text('🔄 Assinaturas Mensais', 20, yPos);
+        doc.text('Assinaturas Mensais', 20, yPos);
         yPos += 10;
- 
-        const assinaturasData = assinaturas.map(a => [a.nome, formatBRL(a.valor)]);
- 
-        doc.autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Nome', 'Valor']],
-          body: assinaturasData,
+          body: assinaturas.map(a => [a.nome, formatBRL(a.valor)]),
           theme: 'grid',
-          didDrawPage: function(data) {
-            yPos = data.lastAutoTable.finalY + 10;
-          },
         });
- 
         yPos = doc.lastAutoTable.finalY + 15;
       }
- 
+
       if (parcelamentos.length > 0) {
         doc.setFontSize(14);
-        doc.text('📅 Parcelamentos', 20, yPos);
+        doc.text('Parcelamentos', 20, yPos);
         yPos += 10;
- 
-        const parcelamentosData = parcelamentos.map(p => [
-          p.descricao,
-          `${p.parcelas_pagas}/${p.parcelas_total}`,
-          formatBRL(p.valor_total),
-          p.status === 'ativo' ? 'Ativo' : 'Finalizado'
-        ]);
- 
-        doc.autoTable({
+        autoTable(doc, {
           startY: yPos,
           head: [['Descrição', 'Progresso', 'Valor Total', 'Status']],
-          body: parcelamentosData,
+          body: parcelamentos.map(p => [
+            p.descricao,
+            `${p.parcelas_pagas}/${p.parcelas_total}`,
+            formatBRL(p.valor_total),
+            p.status === 'ativo' ? 'Ativo' : 'Finalizado'
+          ]),
           theme: 'grid',
-          didDrawPage: function(data) {
-            yPos = data.lastAutoTable.finalY + 10;
-          },
         });
       }
- 
-      doc.save(`relatorio-despesas-${mesAtual()}.pdf`);
-      alert('✅ Relatório gerado com sucesso!');
+
+      doc.save(`relatorio-${mesAtual()}.pdf`);
+      alert('Relatório gerado com sucesso!');
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
-      alert('❌ Erro ao gerar relatório: ' + error.message);
+      alert('Erro ao gerar relatório: ' + error.message);
     }
   };
- 
+
   return (
     <div className="space-y-10">
       <section className="animate-fadeInUp delay-1 py-12 text-center">
         <p className="font-display text-3xl italic leading-tight text-amber-50">"{quote.text}"</p>
         {quote.author && <p className="font-body text-sm text-amber-100/60 mt-3">— {quote.author}</p>}
       </section>
- 
+
       <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <CardResumo label="Receitas" valor={totalReceitasMes} icon={TrendingUp} cor="text-emerald-300" delay={2} />
         <CardResumo label="Pago" valor={totalDespesasMes} icon={CheckCircle2} cor="text-rose-300" delay={3} />
         <CardResumo label="A pagar" valor={totalPendentesMes} icon={Clock} cor="text-amber-300" delay={3} />
         <CardResumo label="Saldo" valor={saldo} icon={Wallet} cor={saldo >= 0 ? "text-amber-300" : "text-rose-400"} destaque delay={4} />
       </section>
- 
+
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="animate-fadeInUp delay-5 bg-amber-100/[0.02] border border-amber-100/10 rounded-2xl p-6 space-y-4">
           <h3 className="font-display text-xl italic text-amber-100">Visão Geral</h3>
- 
+
           <div className="p-4 bg-amber-100/[0.03] rounded-lg border border-amber-100/5">
             <div className="font-body text-sm text-amber-100/70 mb-2">💳 Despesas</div>
             <div className="font-mono num-tabular text-lg text-rose-300">{despesasPagasCount} de {totalDespesas} pagas</div>
             <div className="text-xs text-amber-100/50 mt-1">Total: {formatBRL(despesas.reduce((s, d) => s + parseFloat(d.valor || 0), 0))}</div>
           </div>
- 
+
           <div className="p-4 bg-amber-100/[0.03] rounded-lg border border-amber-100/5">
             <div className="font-body text-sm text-amber-100/70 mb-2">📅 Parcelamentos</div>
             <div className="font-mono num-tabular text-lg text-amber-300">{parcelamentosAtivos} ativo{parcelamentosAtivos !== 1 ? 's' : ''}</div>
             <div className="text-xs text-amber-100/50 mt-1">Total: {totalParcelamentos}</div>
           </div>
- 
+
           <div className="p-4 bg-amber-100/[0.03] rounded-lg border border-amber-100/5">
             <div className="font-body text-sm text-amber-100/70 mb-2">💰 Receitas</div>
             <div className="font-mono num-tabular text-lg text-emerald-300">{receitasMes} este mês</div>
             <div className="text-xs text-amber-100/50 mt-1">Total: {formatBRL(totalReceitasMes)}</div>
           </div>
- 
-          <button 
+
+          <button
             onClick={gerarRelatorio}
             className="w-full mt-4 bg-gradient-to-r from-amber-400 to-amber-300 text-[#0a0a0f] py-3 rounded-lg font-body font-semibold hover:from-amber-300 hover:to-amber-200 transition-all flex items-center justify-center gap-2"
           >
@@ -670,7 +605,7 @@ function HomeAba({ quote, saldo, totalReceitasMes, totalDespesasMes, totalPenden
             Gerar Relatório de Despesas
           </button>
         </div>
- 
+
         <div className="animate-fadeInUp delay-5 bg-amber-100/[0.02] border border-amber-100/10 rounded-2xl p-6">
           <h3 className="font-display text-xl italic text-amber-100 mb-6">Próximas assinaturas</h3>
           {proximasAssinaturas.length === 0 ? (

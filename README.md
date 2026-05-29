@@ -2,7 +2,7 @@
 
 App de controle financeiro pessoal com **receitas, despesas parceladas, categorias, assinaturas** e **acesso por tokens**.
 
-🌐 **Versão online (do autor):** [financas-filipe.vercel.app](https://financas-filipe.vercel.app)
+🌐 **Versão online (do autor):** **[🔐]** 
 
 ![Stack](https://img.shields.io/badge/React-19-blue) ![Vite](https://img.shields.io/badge/Vite-6-purple) ![Tailwind](https://img.shields.io/badge/Tailwind-3-cyan) ![Supabase](https://img.shields.io/badge/Supabase-green) ![License](https://img.shields.io/badge/uso-pessoal-orange)
 

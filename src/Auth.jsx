@@ -1,212 +1,144 @@
 import React, { useState } from "react";
-import { Sparkles, Mail, Lock, User, Loader2, ArrowLeft, KeyRound } from "lucide-react";
 import { supabase } from "./supabase";
+import { Loader2, LogIn, UserPlus, Wallet } from "lucide-react";
 
 export default function Auth() {
-  const [modo, setModo] = useState("login");
+  const [modo, setModo] = useState("login"); // "login" | "cadastro"
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [nome, setNome] = useState("");
-  const [token, setToken] = useState("");
   const [carregando, setCarregando] = useState(false);
-  const [mensagem, setMensagem] = useState(null);
-  const [tipoMsg, setTipoMsg] = useState("info");
+  const [erro, setErro] = useState("");
+  const [sucesso, setSucesso] = useState("");
 
-  const mostrarMsg = (texto, tipo = "info") => {
-    setMensagem(texto);
-    setTipoMsg(tipo);
-  };
-
-  const traduzErro = (msg) => {
-    if (!msg) return "Erro desconhecido";
-    if (msg.includes("Invalid login credentials")) return "Email ou senha incorretos";
-    if (msg.includes("Email not confirmed")) return "Confirme seu email antes de logar";
-    if (msg.includes("User already registered")) return "Este email já está cadastrado";
-    if (msg.includes("Password should be")) return "A senha precisa ter pelo menos 6 caracteres";
-    return msg;
-  };
-
-  const handleLogin = async () => {
-    if (!email || !senha) return mostrarMsg("Preencha email e senha", "error");
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setErro(""); setSucesso("");
     setCarregando(true);
-    setMensagem(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+    if (error) setErro("Email ou senha incorretos.");
     setCarregando(false);
-    if (error) mostrarMsg(traduzErro(error.message), "error");
   };
 
-  const handleCadastro = async () => {
-    if (!email || !senha || !nome || !token)
-      return mostrarMsg("Preencha todos os campos, incluindo o token", "error");
-    if (senha.length < 6)
-      return mostrarMsg("A senha precisa ter pelo menos 6 caracteres", "error");
-
+  const handleCadastro = async (e) => {
+    e.preventDefault();
+    setErro(""); setSucesso("");
+    if (!nome.trim()) { setErro("Informe seu nome."); return; }
     setCarregando(true);
-    setMensagem(null);
-
-    const { data: tokenValido, error: errToken } = await supabase.rpc(
-      "validar_codigo_acesso",
-      { codigo_input: token.trim().toUpperCase(), email_input: email }
-    );
-
-    if (errToken) {
-      setCarregando(false);
-      return mostrarMsg("Erro ao validar token. Tente novamente.", "error");
-    }
-    if (!tokenValido) {
-      setCarregando(false);
-      return mostrarMsg("Token inválido ou já utilizado. Solicite um novo token.", "error");
-    }
-
     const { error } = await supabase.auth.signUp({
       email,
       password: senha,
       options: { data: { nome } },
     });
+    if (error) setErro(error.message);
+    else setSucesso("Conta criada! Verifique seu e-mail para confirmar.");
     setCarregando(false);
-
-    if (error) mostrarMsg(traduzErro(error.message), "error");
-    else {
-      mostrarMsg("Conta criada! Verifique seu email e depois faça login.", "success");
-      setModo("login");
-      setToken("");
-    }
   };
 
-  const handleRecuperar = async () => {
-    if (!email) return mostrarMsg("Digite seu email", "error");
-    setCarregando(true);
-    setMensagem(null);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
-    });
-    setCarregando(false);
-    if (error) mostrarMsg(traduzErro(error.message), "error");
-    else mostrarMsg("Link de recuperação enviado para seu email.", "success");
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (modo === "login") handleLogin();
-    else if (modo === "cadastro") handleCadastro();
-    else handleRecuperar();
-  };
+  const inputCls =
+    "w-full bg-white/[0.04] border border-blue-900/50 rounded-xl px-4 py-3 text-slate-100 placeholder:text-slate-400/40 focus:outline-none focus:border-blue-500/60 transition-colors text-sm";
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] text-amber-50 p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[#060d1a] flex items-center justify-center p-4 relative overflow-hidden">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500&display=swap');
-        .font-display { font-family: 'Fraunces', serif; font-variation-settings: "SOFT" 50, "WONK" 1; }
-        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&display=swap');
+        .font-display { font-family: 'Fraunces', serif; }
         .font-body { font-family: 'Inter', sans-serif; }
-        body { background: #0a0a0f; }
+        body { background: #060d1a; }
       `}</style>
 
-      <div className="fixed top-0 left-1/4 w-[500px] h-[500px] pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(251, 191, 36, 0.12), transparent 70%)' }} />
-      <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(167, 139, 250, 0.10), transparent 70%)' }} />
+      {/* Glow de fundo */}
+      <div className="fixed top-0 left-1/3 w-[600px] h-[600px] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(37, 99, 235, 0.12), transparent 70%)' }} />
+      <div className="fixed bottom-0 right-1/3 w-[500px] h-[500px] pointer-events-none"
+        style={{ background: 'radial-gradient(circle, rgba(14, 165, 233, 0.08), transparent 70%)' }} />
 
-      <div className="w-full max-w-md bg-[#15151c] border border-amber-100/15 rounded-2xl shadow-2xl p-8 relative z-10">
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <Sparkles className="w-7 h-7 text-amber-300" />
-          <h1 className="font-display text-2xl italic text-amber-50">Finanças Filipe</h1>
+      <div className="relative z-10 w-full max-w-sm">
+        {/* Logo / Título */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/25 mb-5">
+            <Wallet size={24} className="text-blue-400" />
+          </div>
+          <h1 className="font-display text-3xl italic text-slate-100">Finanças</h1>
+          <p className="font-body text-sm text-slate-400/60 mt-1">Controle financeiro pessoal</p>
         </div>
 
-        {modo === "recuperar" && (
-          <button onClick={() => setModo("login")}
-            className="flex items-center gap-1 text-amber-100/60 hover:text-amber-100 text-sm mb-4 font-body">
-            <ArrowLeft className="w-4 h-4" /> Voltar ao login
-          </button>
-        )}
-
-        <h2 className="font-display text-xl italic text-amber-50 mb-6">
-          {modo === "login" && "Entrar"}
-          {modo === "cadastro" && "Criar conta"}
-          {modo === "recuperar" && "Recuperar senha"}
-        </h2>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {modo === "cadastro" && (
-            <div className="relative">
-              <User className="absolute left-3 top-3 w-5 h-5 text-amber-100/40" />
-              <input type="text" placeholder="Seu nome" value={nome} onChange={(e) => setNome(e.target.value)}
-                className="w-full pl-10 pr-3 py-2.5 bg-amber-100/[0.03] border border-amber-100/15 rounded-lg text-amber-50 placeholder-amber-100/30 focus:outline-none focus:border-amber-200/40 transition font-body" />
-            </div>
-          )}
-
-          <div className="relative">
-            <Mail className="absolute left-3 top-3 w-5 h-5 text-amber-100/40" />
-            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
-              className="w-full pl-10 pr-3 py-2.5 bg-amber-100/[0.03] border border-amber-100/15 rounded-lg text-amber-50 placeholder-amber-100/30 focus:outline-none focus:border-amber-200/40 transition font-body" />
+        {/* Card */}
+        <div className="bg-[#0d1829] border border-blue-900/40 rounded-2xl p-8">
+          {/* Tabs */}
+          <div className="flex gap-1 bg-white/[0.03] p-1 rounded-xl mb-8 border border-blue-900/30">
+            <button
+              onClick={() => { setModo("login"); setErro(""); setSucesso(""); }}
+              className={`flex-1 py-2 rounded-lg font-body text-sm transition-all flex items-center justify-center gap-2 ${modo === "login" ? "bg-blue-600 text-white" : "text-slate-400/70 hover:text-slate-200"}`}
+            >
+              <LogIn size={14} />Entrar
+            </button>
+            <button
+              onClick={() => { setModo("cadastro"); setErro(""); setSucesso(""); }}
+              className={`flex-1 py-2 rounded-lg font-body text-sm transition-all flex items-center justify-center gap-2 ${modo === "cadastro" ? "bg-blue-600 text-white" : "text-slate-400/70 hover:text-slate-200"}`}
+            >
+              <UserPlus size={14} />Cadastrar
+            </button>
           </div>
 
-          {modo !== "recuperar" && (
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 w-5 h-5 text-amber-100/40" />
-              <input type="password" placeholder="Senha" value={senha} onChange={(e) => setSenha(e.target.value)}
-                className="w-full pl-10 pr-3 py-2.5 bg-amber-100/[0.03] border border-amber-100/15 rounded-lg text-amber-50 placeholder-amber-100/30 focus:outline-none focus:border-amber-200/40 transition font-body" />
-            </div>
-          )}
+          <form onSubmit={modo === "login" ? handleLogin : handleCadastro} className="space-y-4">
+            {modo === "cadastro" && (
+              <input
+                type="text"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Seu nome"
+                className={inputCls}
+                required
+              />
+            )}
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seu@email.com"
+              className={inputCls}
+              required
+            />
+            <input
+              type="password"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              placeholder="Senha"
+              className={inputCls}
+              required
+            />
 
-          {modo === "cadastro" && (
-            <>
-              <div className="relative">
-                <KeyRound className="absolute left-3 top-3 w-5 h-5 text-amber-300" />
-                <input type="text" placeholder="Token (ex: AB12-CD34)" value={token}
-                  onChange={(e) => setToken(e.target.value.toUpperCase())} maxLength={9}
-                  className="w-full pl-10 pr-3 py-2.5 bg-amber-100/[0.03] border border-amber-300/30 rounded-lg text-amber-50 placeholder-amber-100/30 focus:outline-none focus:border-amber-300/60 transition font-mono tracking-wider" />
+            {erro && (
+              <div className="bg-red-500/10 border border-red-500/25 rounded-xl px-4 py-3">
+                <p className="font-body text-xs text-red-400">{erro}</p>
               </div>
-              <div className="bg-amber-100/[0.03] border border-amber-100/10 rounded-lg p-3">
-                <p className="text-xs text-amber-100/70 font-body leading-relaxed">
-                  🔑 <span className="text-amber-300 font-medium">Acesso restrito por token.</span><br/>
-                  Como esse site é visível a todos, algumas permissões são restritas. Entre em contato com o Filipe sobre dúvidas e o seu TOKEN.
-                </p>
+            )}
+            {sucesso && (
+              <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-4 py-3">
+                <p className="font-body text-xs text-emerald-400">{sucesso}</p>
               </div>
-            </>
-          )}
+            )}
 
-          {mensagem && (
-            <div className={`p-3 rounded-lg text-sm font-body ${
-              tipoMsg === "error"
-                ? "bg-rose-500/10 text-rose-200 border border-rose-500/30"
-                : tipoMsg === "success"
-                ? "bg-emerald-500/10 text-emerald-200 border border-emerald-500/30"
-                : "bg-amber-500/10 text-amber-200 border border-amber-500/30"
-            }`}>
-              {mensagem}
-            </div>
-          )}
-
-          <button type="submit" disabled={carregando}
-            className="w-full bg-amber-200 hover:bg-amber-100 disabled:opacity-50 text-[#0a0a0f] font-body font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2">
-            {carregando && <Loader2 className="w-5 h-5 animate-spin" />}
-            {modo === "login" && "Entrar"}
-            {modo === "cadastro" && "Criar conta"}
-            {modo === "recuperar" && "Enviar link"}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center text-sm space-y-2 font-body">
-          {modo === "login" && (
-            <>
-              <button onClick={() => { setModo("cadastro"); setMensagem(null); }}
-                className="text-amber-300 hover:text-amber-200 block w-full">
-                Não tem conta? Criar agora
-              </button>
-              <button onClick={() => { setModo("recuperar"); setMensagem(null); }}
-                className="text-amber-100/40 hover:text-amber-100 text-xs">
-                Esqueci minha senha
-              </button>
-            </>
-          )}
-          {modo === "cadastro" && (
-            <button onClick={() => { setModo("login"); setMensagem(null); }}
-              className="text-amber-300 hover:text-amber-200">
-              Já tem conta? Entrar
+            <button
+              type="submit"
+              disabled={carregando}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-body font-medium transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-60"
+            >
+              {carregando ? (
+                <><Loader2 size={16} className="animate-spin" />Aguarde...</>
+              ) : modo === "login" ? (
+                <><LogIn size={16} />Entrar</>
+              ) : (
+                <><UserPlus size={16} />Criar conta</>
+              )}
             </button>
-          )}
+          </form>
         </div>
+
+        <p className="text-center font-body text-[11px] text-slate-400/30 mt-8">
+          created by Filipe Oliveira
+        </p>
       </div>
     </div>
   );

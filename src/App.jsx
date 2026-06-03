@@ -40,13 +40,7 @@ const QUOTES = [
 
 const ICONS_MAP = { GraduationCap, Utensils, User, Home, Car, ShoppingBag, Heart, Plane, Coffee, Tag };
 
-const ULTIMAS_ATUALIZACOES = [
-  "✔︎ Aba Gráfico — visualize seus gastos dos últimos 6 meses",
-  "✔︎ Aba Histórico — veja e exporte despesas por mês em PDF",
-  "✔︎ Painel Admin — gerencie usuários e permissões",
-  "✔︎ Saldo corrigido — exibido apenas quando há receita cadastrada",
-  "✔︎ Novo design — tema azul escuro renovado",
-];
+// Novidades são gerenciadas pelo painel admin — sem editar código!
 
 const CATEGORIAS_PADRAO = [
   { nome: "Faculdade", cor: "#60a5fa", icone: "GraduationCap" },
@@ -112,8 +106,49 @@ function AppLogado({ session }) {
   const [modalParcelamento, setModalParcelamento] = useState(false);
   const [modalCategoria, setModalCategoria] = useState(false);
   const [avisoFechado, setAvisoFechado] = useState(false);
-  const [mostrarBanner, setMostrarBanner] = useState(true);
+  const [mostrarBanner, setMostrarBanner] = useState(false);
   const [bannerSaindo, setBannerSaindo] = useState(false);
+  const [novidades, setNovidades] = useState({ versao: "", itens: [] });
+
+  const gerarDespesasAssinaturas = async (assinaturasData) => {
+    if (!assinaturasData || assinaturasData.length === 0) return;
+    const mes = mesAtual();
+    const [ano, mesNum] = mes.split("-").map(Number);
+
+    // Busca despesas de assinaturas já existentes no mês atual
+    const { data: despesasExistentes } = await supabase
+      .from("despesas")
+      .select("descricao")
+      .eq("user_id", userId)
+      .eq("status", "pendente")
+      .is("parcela_atual", null)
+      .gte("data_vencimento", `${mes}-01`)
+      .lte("data_vencimento", `${mes}-31`);
+
+    const nomesExistentes = new Set((despesasExistentes || []).map(d => d.descricao));
+
+    // Filtra assinaturas que ainda não têm despesa no mês
+    const novas = assinaturasData
+      .filter(a => !nomesExistentes.has(a.nome))
+      .map(a => {
+        const dia = Math.min(parseInt(a.dia_vencimento), new Date(ano, mesNum, 0).getDate());
+        const dataVenc = `${mes}-${String(dia).padStart(2, "0")}`;
+        return {
+          user_id: userId,
+          descricao: a.nome,
+          valor: a.valor,
+          data: dataVenc,
+          data_vencimento: dataVenc,
+          status: "pendente",
+          parcela_atual: null,
+          parcelas_total: null,
+        };
+      });
+
+    if (novas.length > 0) {
+      await supabase.from("despesas").insert(novas);
+    }
+  };
 
   const carregarTudo = async () => {
     const [r, d, a, p, c, prof] = await Promise.all([
@@ -125,12 +160,18 @@ function AppLogado({ session }) {
       supabase.from("profiles").select("is_admin").eq("id", userId).single(),
     ]);
     setReceitas(r.data || []);
-    setDespesas(d.data || []);
     setAssinaturas(a.data || []);
     setParcelamentos(p.data || []);
     setIsAdmin(prof.data?.is_admin || false);
-    // Atualiza ultimo_login
     await supabase.from("profiles").update({ ultimo_login: new Date().toISOString() }).eq("id", userId);
+
+    // Gera despesas das assinaturas do mês atual se ainda não existirem
+    await gerarDespesasAssinaturas(a.data || []);
+
+    // Recarrega despesas após geração
+    const { data: despesasAtualizadas } = await supabase.from("despesas").select("*").eq("user_id", userId);
+    setDespesas(despesasAtualizadas || []);
+
     if (!c.data || c.data.length === 0) {
       const novas = CATEGORIAS_PADRAO.map(cat => ({ ...cat, user_id: userId, padrao: true }));
       const { data: criadas } = await supabase.from("categorias").insert(novas).select();
@@ -190,13 +231,34 @@ function AppLogado({ session }) {
   const removerCategoria = async (id) => { if (despesas.some(d => d.categoria_id === id)) { alert("Não é possível remover: existem despesas nesta categoria."); return; } const { error } = await supabase.from("categorias").delete().eq("id", id); if (!error) setCategorias(categorias.filter(c => c.id !== id)); };
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
-  // Banner de atualizações: aparece por 5s depois some com fade
+  // Busca novidades do Supabase e mostra 1 vez por versão
+  useEffect(() => {
+    const carregarNovidades = async () => {
+      const { data } = await supabase
+        .from("novidades")
+        .select("*")
+        .eq("ativo", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (!data) return;
+      const visto = localStorage.getItem("banner_versao_vista");
+      if (visto !== data.versao) {
+        const itens = typeof data.itens === "string" ? JSON.parse(data.itens) : data.itens;
+        setNovidades({ versao: data.versao, itens });
+        setMostrarBanner(true);
+      }
+    };
+    carregarNovidades();
+  }, []);
+
   useEffect(() => {
     if (!mostrarBanner) return;
+    localStorage.setItem("banner_versao_vista", novidades.versao);
     const timerSaida = setTimeout(() => setBannerSaindo(true), 7000);
     const timerSome = setTimeout(() => setMostrarBanner(false), 8000);
     return () => { clearTimeout(timerSaida); clearTimeout(timerSome); };
-  }, []);
+  }, [mostrarBanner]);
 
   const despesasPendentes = useMemo(() => despesas.filter(d => d.status === "pendente" || !d.status), [despesas]);
   const despesasPagas = useMemo(() => despesas.filter(d => d.status === "paga"), [despesas]);
@@ -265,10 +327,10 @@ function AppLogado({ session }) {
             </div>
             {/* Lista de atualizações */}
             <div className="px-6 py-5 space-y-3">
-              {ULTIMAS_ATUALIZACOES.map((item, i) => (
+              {novidades.itens.map((item, i) => (
                 <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.03] border border-blue-900/30">
                   <span className="text-blue-400 mt-0.5 flex-shrink-0">✔︎</span>
-                  <span className="font-body text-sm text-slate-200 leading-relaxed">{item.replace("✔︎ ", "")}</span>
+                  <span className="font-body text-sm text-slate-200 leading-relaxed">{item}</span>
                 </div>
               ))}
             </div>
@@ -485,6 +547,109 @@ function UsuariosAba() {
           💡 <span className="text-blue-400">Dica:</span> Para garantir acesso em caso de perda de conta, marque outra conta como admin aqui ou no Supabase → Table Editor → profiles → <span className="font-mono-c text-blue-300">is_admin = true</span>.
         </p>
       </div>
+
+      <PainelNovidades />
+    </div>
+  );
+}
+
+// ── PAINEL NOVIDADES (ADMIN) ──────────────────────────────────────────────────────
+function PainelNovidades() {
+  const [novidades, setNovidades] = useState([]);
+  const [versao, setVersao] = useState("");
+  const [novoItem, setNovoItem] = useState("");
+  const [novaVersao, setNovaVersao] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const carregar = async () => {
+    const { data } = await supabase.from("novidades").select("*").order("created_at", { ascending: false }).limit(1).single();
+    if (data) {
+      const itens = typeof data.itens === "string" ? JSON.parse(data.itens) : data.itens;
+      setNovidades(itens);
+      setVersao(data.versao);
+      setNovaVersao(data.versao);
+    }
+  };
+
+  useEffect(() => { carregar(); }, []);
+
+  const adicionarItem = () => {
+    if (!novoItem.trim()) return;
+    setNovidades([...novidades, novoItem.trim()]);
+    setNovoItem("");
+  };
+
+  const removerItem = (i) => setNovidades(novidades.filter((_, idx) => idx !== i));
+
+  const salvar = async () => {
+    if (!novaVersao.trim() || novidades.length === 0) return;
+    setSalvando(true); setMsg("");
+    // Desativa todas as versões anteriores
+    await supabase.from("novidades").update({ ativo: false }).neq("versao", novaVersao);
+    // Upsert da nova versão
+    const { error } = await supabase.from("novidades").upsert({
+      versao: novaVersao.trim(),
+      itens: JSON.stringify(novidades),
+      ativo: true,
+    }, { onConflict: "versao" });
+    setSalvando(false);
+    if (error) setMsg("Erro: " + error.message);
+    else { setMsg("✔︎ Salvo! Todos os usuários verão na próxima abertura."); setVersao(novaVersao); }
+  };
+
+  return (
+    <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-xl italic text-slate-100">📢 Gerenciar Novidades</h3>
+        <span className="font-mono-c text-[10px] text-blue-400/70 border border-blue-500/30 px-2 py-1 rounded-full">versão atual: {versao}</span>
+      </div>
+
+      {/* Lista atual */}
+      <div className="space-y-2">
+        {novidades.map((item, i) => (
+          <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-blue-900/20 group">
+            <span className="text-blue-400 text-xs flex-shrink-0">✔︎</span>
+            <span className="font-body text-sm text-slate-200 flex-1">{item}</span>
+            <button onClick={() => removerItem(i)} className="opacity-0 group-hover:opacity-100 text-slate-400/40 hover:text-red-400 transition-all"><Trash2 size={13}/></button>
+          </div>
+        ))}
+        {novidades.length === 0 && <p className="font-body text-sm text-slate-400/40 text-center py-4">Nenhum item ainda.</p>}
+      </div>
+
+      {/* Adicionar item */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={novoItem}
+          onChange={e => setNovoItem(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && adicionarItem()}
+          placeholder="Nova novidade... (Enter para adicionar)"
+          className="flex-1 bg-white/[0.03] border border-blue-900/40 rounded-xl px-4 py-2.5 text-slate-100 placeholder:text-slate-400/40 focus:outline-none focus:border-blue-500/50 text-sm"
+        />
+        <button onClick={adicionarItem} className="px-4 py-2.5 bg-blue-600/20 border border-blue-500/30 text-blue-300 rounded-xl hover:bg-blue-600/30 transition-all">
+          <Plus size={16}/>
+        </button>
+      </div>
+
+      {/* Versão */}
+      <div className="flex gap-2 items-center">
+        <span className="font-body text-xs text-slate-400/60 flex-shrink-0">Versão:</span>
+        <input
+          type="text"
+          value={novaVersao}
+          onChange={e => setNovaVersao(e.target.value)}
+          placeholder="ex: v4"
+          className="w-24 bg-white/[0.03] border border-blue-900/40 rounded-xl px-3 py-2 text-slate-100 placeholder:text-slate-400/40 focus:outline-none focus:border-blue-500/50 text-sm font-mono-c"
+        />
+        <span className="font-body text-[11px] text-slate-400/40">← mude para forçar exibição para todos</span>
+      </div>
+
+      {msg && <p className={`font-body text-xs ${msg.startsWith("✔︎") ? "text-emerald-400" : "text-red-400"}`}>{msg}</p>}
+
+      <button onClick={salvar} disabled={salvando} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-body font-medium transition-all flex items-center justify-center gap-2">
+        {salvando ? <><Loader2 size={14} className="animate-spin"/>Salvando...</> : "Publicar novidades"}
+      </button>
     </div>
   );
 }

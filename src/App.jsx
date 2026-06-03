@@ -14,7 +14,7 @@ import Auth from "./Auth";
 const QUOTES = [
   { text: "Tudo posso naquele que me fortalece.", author: "Filipenses 4:13" },
   { text: "O Senhor é o meu pastor e nada me faltará.", author: "Salmos 23:1" },
-  { text: "Porque sou eu que conheço os planos que tenho para vocês.", author: "Jeremias 29:11" },F
+  { text: "Porque sou eu que conheço os planos que tenho para vocês.", author: "Jeremias 29:11" },
   { text: "Confie no Senhor de todo o seu coração.", author: "Provérbios 3:5" },
   { text: "Honre o Senhor com a sua riqueza e com as primícias.", author: "Provérbios 3:9" },
   { text: "Não acumulem para si tesouros na terra.", author: "Mateus 6:19" },

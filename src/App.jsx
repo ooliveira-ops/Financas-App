@@ -40,6 +40,14 @@ const QUOTES = [
 
 const ICONS_MAP = { GraduationCap, Utensils, User, Home, Car, ShoppingBag, Heart, Plane, Coffee, Tag };
 
+const ULTIMAS_ATUALIZACOES = [
+  "✦ Aba Gráfico — visualize seus gastos dos últimos 6 meses",
+  "✦ Aba Histórico — veja e exporte despesas por mês em PDF",
+  "✦ Painel Admin — gerencie usuários e permissões",
+  "✦ Saldo corrigido — exibido apenas quando há receita cadastrada",
+  "✦ Novo design — tema azul escuro renovado",
+];
+
 const CATEGORIAS_PADRAO = [
   { nome: "Faculdade", cor: "#60a5fa", icone: "GraduationCap" },
   { nome: "Comida", cor: "#34d399", icone: "Utensils" },
@@ -104,6 +112,8 @@ function AppLogado({ session }) {
   const [modalParcelamento, setModalParcelamento] = useState(false);
   const [modalCategoria, setModalCategoria] = useState(false);
   const [avisoFechado, setAvisoFechado] = useState(false);
+  const [mostrarBanner, setMostrarBanner] = useState(true);
+  const [bannerSaindo, setBannerSaindo] = useState(false);
 
   const carregarTudo = async () => {
     const [r, d, a, p, c, prof] = await Promise.all([
@@ -180,6 +190,14 @@ function AppLogado({ session }) {
   const removerCategoria = async (id) => { if (despesas.some(d => d.categoria_id === id)) { alert("Não é possível remover: existem despesas nesta categoria."); return; } const { error } = await supabase.from("categorias").delete().eq("id", id); if (!error) setCategorias(categorias.filter(c => c.id !== id)); };
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
+  // Banner de atualizações: aparece por 5s depois some com fade
+  useEffect(() => {
+    if (!mostrarBanner) return;
+    const timerSaida = setTimeout(() => setBannerSaindo(true), 4000);
+    const timerSome = setTimeout(() => setMostrarBanner(false), 5000);
+    return () => { clearTimeout(timerSaida); clearTimeout(timerSome); };
+  }, []);
+
   const despesasPendentes = useMemo(() => despesas.filter(d => d.status === "pendente" || !d.status), [despesas]);
   const despesasPagas = useMemo(() => despesas.filter(d => d.status === "paga"), [despesas]);
   const totalReceitasMes = useMemo(() => receitas.filter(r => (r.mes || mesAtual()) === mesAtual()).reduce((s, r) => s + parseFloat(r.valor || 0), 0), [receitas]);
@@ -220,12 +238,34 @@ function AppLogado({ session }) {
         body { background: #060d1a; }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fadeInUp { animation: fadeInUp 0.7s ease-out forwards; opacity: 0; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-20px); } }
+        .banner-enter { animation: slideDown 0.5s ease-out forwards; }
+        .banner-exit { animation: slideUp 0.5s ease-in forwards; }
         .delay-1{animation-delay:.1s}.delay-2{animation-delay:.25s}.delay-3{animation-delay:.4s}.delay-4{animation-delay:.55s}.delay-5{animation-delay:.7s}
         .num-tabular { font-variant-numeric: tabular-nums; font-style: normal; }
         ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0d1829}::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:3px}
       `}</style>
       <div className="fixed top-0 left-1/4 w-[600px] h-[600px] pointer-events-none" style={{background:"radial-gradient(circle,rgba(37,99,235,.10),transparent 70%)"}}/>
       <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] pointer-events-none" style={{background:"radial-gradient(circle,rgba(14,165,233,.07),transparent 70%)"}}/>
+
+      {mostrarBanner && (
+        <div className={`fixed top-0 left-0 right-0 z-50 ${bannerSaindo ? "banner-exit" : "banner-enter"}`}>
+          <div className="bg-blue-600/90 backdrop-blur-sm border-b border-blue-400/30 px-6 py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <span className="font-mono-c text-[10px] text-blue-200/80 uppercase tracking-widest whitespace-nowrap flex-shrink-0">Últimas atualizações</span>
+              <div className="flex gap-4 overflow-x-auto scrollbar-none">
+                {ULTIMAS_ATUALIZACOES.map((item, i) => (
+                  <span key={i} className="font-body text-xs text-white/90 whitespace-nowrap">{item}</span>
+                ))}
+              </div>
+            </div>
+            <button onClick={() => { setBannerSaindo(true); setTimeout(() => setMostrarBanner(false), 500); }} className="text-blue-200/60 hover:text-white ml-4 flex-shrink-0 transition-colors">
+              <X size={14}/>
+            </button>
+          </div>
+        </div>
+      )}
 
       {!avisoFechado && (avisoDespesas.vencidas.length > 0 || avisoDespesas.vencendo.length > 0) && (
         <div className="fixed top-4 right-4 z-30 animate-fadeInUp max-w-sm bg-[#0d1829]/95 border border-blue-500/20 rounded-2xl p-4">

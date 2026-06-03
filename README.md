@@ -1,65 +1,75 @@
 # 💰 Finanças Filipe
 
-App de controle financeiro pessoal com **receitas, despesas parceladas, categorias, assinaturas** e **acesso por tokens**.
+App de controle financeiro pessoal com **receitas, despesas parceladas, categorias, assinaturas, gráficos e painel admin**.
 
-🌐 **Versão online (do autor):** **[🔐]** 
 
-![Stack](https://img.shields.io/badge/React-19-blue) ![Vite](https://img.shields.io/badge/Vite-6-purple) ![Tailwind](https://img.shields.io/badge/Tailwind-3-cyan) ![Supabase](https://img.shields.io/badge/Supabase-green) ![License](https://img.shields.io/badge/uso-pessoal-orange)
+![React](https://img.shields.io/badge/React-19-blue) ![Vite](https://img.shields.io/badge/Vite-6-purple) ![Tailwind](https://img.shields.io/badge/Tailwind-3-cyan) ![Supabase](https://img.shields.io/badge/Supabase-green) ![License](https://img.shields.io/badge/uso-pessoal-orange)
 
 ---
 
 ## ✨ Funcionalidades
 
-- 🔐 **Acesso por tokens** — sistema de convite com 15 tokens únicos
-- 💸 **Despesas pendentes vs pagas** — só desconta do saldo quando marca como paga
-- 📅 **Parcelamento automático** — ex: R$800 em 4x vira 4 despesas mensais
-- ⚡ **Adiantar parcelas** — selecione quais parcelas pagar antecipadamente
-- 🗑️ **Lixeira individual** — apague parcelas específicas
-- 🏷️ **Categorias** personalizáveis com cores e ícones
-- 💰 **Receitas** mensais e assinaturas recorrentes
-- 🔔 **Avisos** de contas vencendo ao abrir o app
-- 📊 **Resumo mensal** automático
+- 🔐 **Acesso por tokens** — sistema de convite com tokens únicos, sem cadastro aberto
+- 💸 **Despesas** — pendentes vs pagas, com controle de vencimento e categorias
+- 📅 **Parcelamento automático** — ex: R$800 em 4x vira 4 despesas mensais separadas
+- 💰 **Receitas mensais** — registre suas entradas por mês
+- 🔄 **Assinaturas recorrentes** — Netflix, Spotify, planos — com dia de vencimento
+- 📊 **Gráfico de área** — visualize receitas, despesas pagas, pendentes e assinaturas dos últimos 6 meses
+- 🗂️ **Histórico por mês** — veja todas as despesas de qualquer mês e exporte em PDF
+- 📄 **Relatório PDF** — gera relatório completo do mês atual com um clique
+- 🔔 **Avisos de vencimento** — alerta ao abrir o app para contas vencidas ou vencendo em 7 dias
+- 🛡️ **Painel Admin** — visualiza usuários, último login e gerencia permissões de admin
+- 💡 **Saldo real** — só exibido quando há receita cadastrada no mês; nunca mostra negativo por falta de lançamento
+- 🎨 **Design azul escuro** — tema refinado com Fraunces + JetBrains Mono
 
 ---
 
 ## 🛠️ Stack
 
 - **React 19** + **Vite**
-- **Tailwind CSS** (estilo personalizado com Fraunces + JetBrains Mono)
+- **Tailwind CSS** (tema personalizado)
 - **Supabase** (PostgreSQL + Auth + RLS)
-- **Recharts** (gráficos)
+- **Recharts** (gráficos de área)
+- **jsPDF + jspdf-autotable** (exportação PDF)
 - **Lucide Icons**
 - Deploy na **Vercel**
 
 ---
 
+## 🗂️ Estrutura
+
+```
+src/
+├── App.jsx        # Toda a lógica: abas, modais, cálculos, gráfico, admin
+├── Auth.jsx       # Login, cadastro com token e recuperação de senha
+├── supabase.js    # Cliente Supabase
+└── main.jsx       # Entry point
+```
+
+---
+
 ## 🚀 Como criar a SUA versão
 
-Quer ter o seu próprio app de finanças baseado neste projeto? Segue o passo a passo:
-
-### 1️⃣ Clonar o repositório
+### 1️⃣ Clonar e instalar
 
 ```bash
-git clone https://github.com/ooliveira-ops/[nome-deste-repo].git
-cd [nome-deste-repo]
+git clone https://github.com/ooliveira-ops/Financas-Filipe.git
+cd Financas-Filipe
 npm install
 ```
 
-### 2️⃣ Criar um Supabase próprio (grátis)
+### 2️⃣ Criar projeto no Supabase
 
-1. Acesse https://supabase.com e crie uma conta
-2. Clique em **New Project**
-3. Escolha um nome (ex: `meu-financas`) e uma senha forte
-4. Aguarde ~2 minutos pra o projeto ficar pronto
+1. Acesse [supabase.com](https://supabase.com) e crie uma conta
+2. **New Project** → nome e senha → aguarde ~2 minutos
 
-### 3️⃣ Configurar as tabelas do banco
+### 3️⃣ Rodar os SQLs
 
-No Supabase, vá em **SQL Editor** → **New query** e rode estes SQLs **na ordem**:
+No Supabase → **SQL Editor** → rode na ordem:
 
-**Primeiro:** crie as tabelas básicas:
+**Tabelas básicas:**
 
 ```sql
--- Categorias
 CREATE TABLE public.categorias (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users NOT NULL,
@@ -70,7 +80,6 @@ CREATE TABLE public.categorias (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Despesas
 CREATE TABLE public.despesas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users NOT NULL,
@@ -78,10 +87,14 @@ CREATE TABLE public.despesas (
   descricao TEXT NOT NULL,
   valor NUMERIC NOT NULL,
   data DATE,
+  data_vencimento DATE,
+  data_pagamento DATE,
+  status TEXT DEFAULT 'pendente',
+  parcela_atual INT,
+  parcelas_total INT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Receitas
 CREATE TABLE public.receitas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users NOT NULL,
@@ -91,7 +104,6 @@ CREATE TABLE public.receitas (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Assinaturas
 CREATE TABLE public.assinaturas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users NOT NULL,
@@ -101,128 +113,136 @@ CREATE TABLE public.assinaturas (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Row Level Security (importante!)
+CREATE TABLE public.parcelamentos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users NOT NULL,
+  descricao TEXT NOT NULL,
+  valor_total NUMERIC NOT NULL,
+  parcelas_total INT NOT NULL,
+  parcelas_pagas INT DEFAULT 0,
+  valor_pago NUMERIC DEFAULT 0,
+  proxima_parcela_data DATE,
+  categoria_id UUID,
+  status TEXT DEFAULT 'ativo',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE public.profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  nome TEXT,
+  email TEXT,
+  is_admin BOOLEAN DEFAULT FALSE,
+  ultimo_login TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 ALTER TABLE public.categorias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.despesas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.receitas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assinaturas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.parcelamentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Políticas: cada usuário só vê seus próprios dados
 CREATE POLICY "user_own_categorias" ON public.categorias FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "user_own_despesas" ON public.despesas FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "user_own_receitas" ON public.receitas FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "user_own_assinaturas" ON public.assinaturas FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "user_own_parcelamentos" ON public.parcelamentos FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "perfis_visiveis" ON public.profiles FOR SELECT TO authenticated USING (true);
+CREATE POLICY "usuario_atualiza_proprio" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
+
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO profiles (id, nome, email)
+  VALUES (NEW.id, NEW.raw_user_meta_data->>'nome', NEW.email);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 ```
 
-**Depois:** rode o script de tokens e colunas extras:
+**Depois:** rode o arquivo `supabase-setup.sql` do repositório para criar tokens e funções auxiliares.
 
-Use o arquivo `01-supabase-setup-FINAL.sql` deste repositório (cola o conteúdo todo no SQL Editor e roda).
+### 4️⃣ Definir o admin
 
-### 4️⃣ ⭐ Ver seus 15 tokens gerados
-
-Depois que rodar o SQL principal, aparecerá uma tabela com os tokens. Você também pode rodar a qualquer momento:
+Após criar sua conta, pegue seu UUID em **Authentication → Users** e rode:
 
 ```sql
-SELECT
-  lpad(id::text, 2, '0') AS "#",
-  codigo AS "Token",
-  ativo AS "Disponível"
+INSERT INTO profiles (id, nome, email, is_admin)
+VALUES ('seu-uuid-aqui', 'Seu Nome', 'seu@email.com', TRUE)
+ON CONFLICT (id) DO UPDATE SET is_admin = TRUE;
+```
+
+### 5️⃣ Ver seus tokens
+
+```sql
+SELECT lpad(id::text, 2, '0') AS "#", codigo AS "Token", ativo AS "Disponível"
 FROM public.codigos_acesso
 ORDER BY id;
 ```
 
-📝 **Salve esses 15 tokens em local seguro** (Bitwarden, Notas privadas, etc.). Você usa pra dar acesso pra outras pessoas.
+📝 **Salve os tokens em local seguro.** São usados para liberar acesso a outras pessoas.
 
-⚠️ **NUNCA** comite esses tokens no GitHub!
+### 6️⃣ Configurar variáveis de ambiente
 
-### 5️⃣ Conectar o app ao seu Supabase
-
-No Supabase, copie suas chaves:
-1. **Project Settings** → **API**
-2. Copie:
-   - **Project URL** (ex: `https://abcde.supabase.co`)
-   - **anon public key**
-
-Crie um arquivo `.env.local` na raiz do projeto:
+Crie `.env.local` na raiz:
 
 ```env
 VITE_SUPABASE_URL=https://seu-projeto.supabase.co
 VITE_SUPABASE_ANON_KEY=sua-chave-anon-aqui
 ```
 
-### 6️⃣ Testar localmente
+Chaves em: Supabase → **Project Settings → API**
+
+### 7️⃣ Rodar localmente
 
 ```bash
 npm run dev
 ```
 
-Abre http://localhost:5173. Tente criar uma conta com um dos seus tokens.
+Abre em http://localhost:5173
 
-### 7️⃣ Deploy na Vercel (grátis)
+### 8️⃣ Deploy na Vercel
 
-1. Acesse https://vercel.com e conecte sua conta GitHub
-2. **Import Project** → selecione seu repositório
-3. Em **Environment Variables**, adicione:
-   - `VITE_SUPABASE_URL` = seu URL
-   - `VITE_SUPABASE_ANON_KEY` = sua chave
-4. Clique **Deploy**
-
-Pronto! Seu app está no ar. 🎉
+1. Acesse [vercel.com](https://vercel.com) e conecte o GitHub
+2. **Import Project** → selecione o repositório
+3. Adicione as **Environment Variables** (`VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`)
+4. **Deploy** — pronto! 🎉
 
 ---
 
-## 📋 Como gerenciar tokens
-
-### Ver todos os tokens (e quem usou)
+## 📋 Gerenciar tokens
 
 ```sql
-SELECT codigo, ativo, usado_por, usado_em
-FROM public.codigos_acesso
-ORDER BY id;
-```
+-- Ver todos os tokens
+SELECT codigo, ativo, usado_por, usado_em FROM public.codigos_acesso ORDER BY id;
 
-### Liberar um token de novo (pessoa parou de usar)
-
-```sql
+-- Liberar token de volta
 UPDATE public.codigos_acesso
 SET ativo = true, usado_por = NULL, usado_em = NULL
 WHERE codigo = 'XXXX-XXXX';
-```
 
-E delete a conta da pessoa em: **Authentication → Users → ⋯ → Delete user**
-
-### Gerar tokens extras (além dos 15 iniciais)
-
-```sql
+-- Gerar token extra
 INSERT INTO public.codigos_acesso (codigo, descricao)
 VALUES (public.gerar_token_aleatorio(), 'Token extra');
-```
 
-### Desativar todos (parar cadastros)
-
-```sql
+-- Desativar todos (fechar cadastros)
 UPDATE public.codigos_acesso SET ativo = false;
-```
-
----
-
-## 📁 Estrutura
-
-```
-src/
-├── App.jsx        # Componente principal (todas as abas e modais)
-├── Auth.jsx       # Tela de login/cadastro com token
-├── supabase.js    # Cliente Supabase
-└── main.jsx       # Entry point
 ```
 
 ---
 
 ## ⚠️ Importante
 
-- Cada deploy tem **seu próprio Supabase e tokens independentes**
-- Os dados de cada usuário são isolados via Row Level Security (RLS)
+- Cada deploy tem **Supabase e tokens próprios e independentes**
+- Dados de cada usuário são isolados via **Row Level Security (RLS)**
 - O acesso ao app é restrito por tokens distribuídos pelo dono do deploy
+- O painel **Admin** só aparece para usuários com `is_admin = true` no banco
+- Para não perder acesso admin, marque uma segunda conta como admin pelo painel ou direto no Supabase
 
 ---
 
@@ -232,4 +252,4 @@ src/
 
 ---
 
-Feito com 💚 — sinta-se livre pra clonar e adaptar pra você.
+Feito com 💙 — sinta-se livre pra clonar e adaptar pra você.

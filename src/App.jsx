@@ -14,7 +14,7 @@ import Auth from "./Auth";
 const QUOTES = [
   { text: "Tudo posso naquele que me fortalece.", author: "Filipenses 4:13" },
   { text: "O Senhor é o meu pastor e nada me faltará.", author: "Salmos 23:1" },
-  { text: "Porque sou eu que conheço os planos que tenho para vocês.", author: "Jeremias 29:11" },
+  { text: "Porque sou eu que conheço os planos que tenho para vocês.", author: "Jeremias 29:11" },F
   { text: "Confie no Senhor de todo o seu coração.", author: "Provérbios 3:5" },
   { text: "Honre o Senhor com a sua riqueza e com as primícias.", author: "Provérbios 3:9" },
   { text: "Não acumulem para si tesouros na terra.", author: "Mateus 6:19" },
@@ -41,11 +41,11 @@ const QUOTES = [
 const ICONS_MAP = { GraduationCap, Utensils, User, Home, Car, ShoppingBag, Heart, Plane, Coffee, Tag };
 
 const ULTIMAS_ATUALIZACOES = [
-  "✦ Aba Gráfico — visualize seus gastos dos últimos 6 meses",
-  "✦ Aba Histórico — veja e exporte despesas por mês em PDF",
-  "✦ Painel Admin — gerencie usuários e permissões",
-  "✦ Saldo corrigido — exibido apenas quando há receita cadastrada",
-  "✦ Novo design — tema azul escuro renovado",
+  "✔︎ Aba Gráfico — visualize seus gastos dos últimos 6 meses",
+  "✔︎ Aba Histórico — veja e exporte despesas por mês em PDF",
+  "✔︎ Painel Admin — gerencie usuários e permissões",
+  "✔︎ Saldo corrigido — exibido apenas quando há receita cadastrada",
+  "✔︎ Novo design — tema azul escuro renovado",
 ];
 
 const CATEGORIAS_PADRAO = [
@@ -193,8 +193,8 @@ function AppLogado({ session }) {
   // Banner de atualizações: aparece por 5s depois some com fade
   useEffect(() => {
     if (!mostrarBanner) return;
-    const timerSaida = setTimeout(() => setBannerSaindo(true), 4000);
-    const timerSome = setTimeout(() => setMostrarBanner(false), 5000);
+    const timerSaida = setTimeout(() => setBannerSaindo(true), 7000);
+    const timerSome = setTimeout(() => setMostrarBanner(false), 8000);
     return () => { clearTimeout(timerSaida); clearTimeout(timerSome); };
   }, []);
 
@@ -242,6 +242,7 @@ function AppLogado({ session }) {
         @keyframes slideUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-20px); } }
         .banner-enter { animation: slideDown 0.5s ease-out forwards; }
         .banner-exit { animation: slideUp 0.5s ease-in forwards; }
+        @keyframes progress8s { from { width: 100%; } to { width: 0%; } }
         .delay-1{animation-delay:.1s}.delay-2{animation-delay:.25s}.delay-3{animation-delay:.4s}.delay-4{animation-delay:.55s}.delay-5{animation-delay:.7s}
         .num-tabular { font-variant-numeric: tabular-nums; font-style: normal; }
         ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0d1829}::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:3px}
@@ -250,19 +251,34 @@ function AppLogado({ session }) {
       <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] pointer-events-none" style={{background:"radial-gradient(circle,rgba(14,165,233,.07),transparent 70%)"}}/>
 
       {mostrarBanner && (
-        <div className={`fixed top-0 left-0 right-0 z-50 ${bannerSaindo ? "banner-exit" : "banner-enter"}`}>
-          <div className="bg-blue-600/90 backdrop-blur-sm border-b border-blue-400/30 px-6 py-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-3 overflow-hidden">
-              <span className="font-mono-c text-[10px] text-blue-200/80 uppercase tracking-widest whitespace-nowrap flex-shrink-0">Últimas atualizações</span>
-              <div className="flex gap-4 overflow-x-auto scrollbar-none">
-                {ULTIMAS_ATUALIZACOES.map((item, i) => (
-                  <span key={i} className="font-body text-xs text-white/90 whitespace-nowrap">{item}</span>
-                ))}
+        <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm ${bannerSaindo ? "banner-exit" : "banner-enter"}`}>
+          <div className="bg-[#0d1829] border-2 border-blue-500/50 rounded-2xl w-full max-w-lg mx-4 shadow-2xl shadow-blue-900/40 overflow-hidden">
+            {/* Header */}
+            <div className="bg-blue-600/20 border-b border-blue-500/30 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"/>
+                <span className="font-mono-c text-xs text-blue-300 uppercase tracking-widest">Últimas atualizações</span>
               </div>
+              <button onClick={() => { setBannerSaindo(true); setTimeout(() => setMostrarBanner(false), 500); }} className="text-slate-400/60 hover:text-white transition-colors">
+                <X size={16}/>
+              </button>
             </div>
-            <button onClick={() => { setBannerSaindo(true); setTimeout(() => setMostrarBanner(false), 500); }} className="text-blue-200/60 hover:text-white ml-4 flex-shrink-0 transition-colors">
-              <X size={14}/>
-            </button>
+            {/* Lista de atualizações */}
+            <div className="px-6 py-5 space-y-3">
+              {ULTIMAS_ATUALIZACOES.map((item, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.03] border border-blue-900/30">
+                  <span className="text-blue-400 mt-0.5 flex-shrink-0">✔︎</span>
+                  <span className="font-body text-sm text-slate-200 leading-relaxed">{item.replace("✔︎ ", "")}</span>
+                </div>
+              ))}
+            </div>
+            {/* Footer com barra de progresso */}
+            <div className="px-6 pb-5">
+              <div className="w-full bg-blue-900/30 rounded-full h-1 overflow-hidden">
+                <div className="bg-blue-500 h-full rounded-full" style={{animation: "progress8s 8s linear forwards"}}/>
+              </div>
+              <p className="font-body text-[11px] text-slate-400/50 text-center mt-2">Fecha automaticamente em 8s</p>
+            </div>
           </div>
         </div>
       )}

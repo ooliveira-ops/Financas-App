@@ -111,7 +111,9 @@ function AppLogado({ session }) {
   const [novidades, setNovidades] = useState({ versao: "", itens: [] });
 
   const gerarDespesasAssinaturas = async (assinaturasData) => {
+    if (assinaturasGeradasRef.current) return; // já rodou nesta sessão
     if (!assinaturasData || assinaturasData.length === 0) return;
+    assinaturasGeradasRef.current = true;
     const mes = mesAtual();
     const [ano, mesNum] = mes.split("-").map(Number);
 
@@ -181,8 +183,16 @@ function AppLogado({ session }) {
     } else { setCategorias(c.data); }
   };
 
+  const assinaturasGeradasRef = React.useRef(false);
+
   useEffect(() => {
-    const carregar = async () => { setCarregandoDados(true); await carregarTudo(); setCarregandoDados(false); setQuote(QUOTES[Math.floor(Math.random() * QUOTES.length)]); };
+    assinaturasGeradasRef.current = false; // reset ao trocar usuário
+    const carregar = async () => {
+      setCarregandoDados(true);
+      await carregarTudo();
+      setCarregandoDados(false);
+      setQuote(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
+    };
     carregar();
   }, [userId]);
 

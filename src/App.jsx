@@ -115,35 +115,37 @@ function AppLogado({ session }) {
     const mes = mesAtual();
     const [ano, mesNum] = mes.split("-").map(Number);
 
-    // Busca despesas de assinaturas já existentes no mês atual
+    // Busca TODAS as despesas do mês (pagas e pendentes) para evitar duplicatas
     const { data: despesasExistentes } = await supabase
       .from("despesas")
-      .select("descricao")
+      .select("descricao, data_vencimento")
       .eq("user_id", userId)
-      .eq("status", "pendente")
       .is("parcela_atual", null)
       .gte("data_vencimento", `${mes}-01`)
       .lte("data_vencimento", `${mes}-31`);
 
-    const nomesExistentes = new Set((despesasExistentes || []).map(d => d.descricao));
+    // Chave única: nome + data_vencimento
+    const chaves = new Set(
+      (despesasExistentes || []).map(d => `${d.descricao}|${d.data_vencimento}`)
+    );
 
-    // Filtra assinaturas que ainda não têm despesa no mês
     const novas = assinaturasData
-      .filter(a => !nomesExistentes.has(a.nome))
       .map(a => {
         const dia = Math.min(parseInt(a.dia_vencimento), new Date(ano, mesNum, 0).getDate());
         const dataVenc = `${mes}-${String(dia).padStart(2, "0")}`;
-        return {
-          user_id: userId,
-          descricao: a.nome,
-          valor: a.valor,
-          data: dataVenc,
-          data_vencimento: dataVenc,
-          status: "pendente",
-          parcela_atual: null,
-          parcelas_total: null,
-        };
-      });
+        return { a, dataVenc };
+      })
+      .filter(({ a, dataVenc }) => !chaves.has(`${a.nome}|${dataVenc}`))
+      .map(({ a, dataVenc }) => ({
+        user_id: userId,
+        descricao: a.nome,
+        valor: a.valor,
+        data: dataVenc,
+        data_vencimento: dataVenc,
+        status: "pendente",
+        parcela_atual: null,
+        parcelas_total: null,
+      }));
 
     if (novas.length > 0) {
       await supabase.from("despesas").insert(novas);

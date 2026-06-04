@@ -123,14 +123,15 @@ function AppLogado({ session }) {
     // Busca TODAS as despesas do mês para checar duplicatas no banco
     const { data: despesasExistentes } = await supabase
       .from("despesas")
-      .select("descricao, data_vencimento")
+      .select("descricao, data_vencimento, parcela_atual")
       .eq("user_id", userId)
-      .is("parcela_atual", null)
       .gte("data_vencimento", `${mes}-01`)
       .lte("data_vencimento", `${mes}-31`);
 
     const chaves = new Set(
-      (despesasExistentes || []).map(d => `${d.descricao}|${d.data_vencimento}`)
+      (despesasExistentes || [])
+        .filter(d => d.parcela_atual === null)
+        .map(d => `${d.descricao}|${d.data_vencimento}`)
     );
 
     const novas = assinaturasData

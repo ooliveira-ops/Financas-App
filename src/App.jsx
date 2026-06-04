@@ -106,6 +106,8 @@ function AppLogado({ session }) {
   const [modalParcelamento, setModalParcelamento] = useState(false);
   const [modalCategoria, setModalCategoria] = useState(false);
   const [avisoFechado, setAvisoFechado] = useState(false);
+  const carregandoRef = React.useRef(false);
+  const assinaturasGeradasMesRef = React.useRef("");
   const [mostrarBanner, setMostrarBanner] = useState(false);
   const [bannerSaindo, setBannerSaindo] = useState(false);
   const [novidades, setNovidades] = useState({ versao: "", itens: [] });
@@ -149,31 +151,47 @@ function AppLogado({ session }) {
   };
 
   const carregarTudo = async () => {
-    const [r, d, a, p, c, prof] = await Promise.all([
-      supabase.from("receitas").select("*").eq("user_id", userId),
-      supabase.from("despesas").select("*").eq("user_id", userId),
-      supabase.from("assinaturas").select("*").eq("user_id", userId),
-      supabase.from("parcelamentos").select("*").eq("user_id", userId),
-      supabase.from("categorias").select("*").eq("user_id", userId),
-      supabase.from("profiles").select("is_admin").eq("id", userId).single(),
-    ]);
-    setReceitas(r.data || []);
-    setAssinaturas(a.data || []);
-    setParcelamentos(p.data || []);
-    setIsAdmin(prof.data?.is_admin || false);
-    await supabase.from("profiles").update({ ultimo_login: new Date().toISOString() }).eq("id", userId);
+    // Mutex: impede execução simultânea
+    if (carregandoRef.current) return;
+    carregandoRef.current = true;
 
-    // Gera despesas das assinaturas do mês atual passando as já existentes
-    // Evita race condition: usa os dados já carregados, sem nova query
-    const novasGeradas = await gerarDespesasAssinaturas(a.data || [], d.data || []);
-    // Combina despesas existentes + novas geradas em um único setState
-    setDespesas([...(d.data || []), ...novasGeradas]);
+    try {
+      const [r, d, a, p, c, prof] = await Promise.all([
+        supabase.from("receitas").select("*").eq("user_id", userId),
+        supabase.from("despesas").select("*").eq("user_id", userId),
+        supabase.from("assinaturas").select("*").eq("user_id", userId),
+        supabase.from("parcelamentos").select("*").eq("user_id", userId),
+        supabase.from("categorias").select("*").eq("user_id", userId),
+        supabase.from("profiles").select("is_admin").eq("id", userId).single(),
+      ]);
+      setReceitas(r.data || []);
+      setAssinaturas(a.data || []);
+      setParcelamentos(p.data || []);
+      setIsAdmin(prof.data?.is_admin || false);
+      await supabase.from("profiles").update({ ultimo_login: new Date().toISOString() }).eq("id", userId);
 
-    if (!c.data || c.data.length === 0) {
-      const novas = CATEGORIAS_PADRAO.map(cat => ({ ...cat, user_id: userId, padrao: true }));
-      const { data: criadas } = await supabase.from("categorias").insert(novas).select();
-      setCategorias(criadas || []);
-    } else { setCategorias(c.data); }
+      // Só gera despesas de assinaturas se ainda não gerou neste mês
+      const mes = mesAtual();
+      let todasDespesas = d.data || [];
+      if (assinaturasGeradasMesRef.current !== mes) {
+        const novasGeradas = await gerarDespesasAssinaturas(a.data || [], d.data || []);
+        if (novasGeradas.length > 0) {
+          todasDespesas = [...todasDespesas, ...novasGeradas];
+          assinaturasGeradasMesRef.current = mes; // marca que já gerou este mês
+        } else {
+          assinaturasGeradasMesRef.current = mes; // já existiam todas
+        }
+      }
+      setDespesas(todasDespesas);
+
+      if (!c.data || c.data.length === 0) {
+        const novas = CATEGORIAS_PADRAO.map(cat => ({ ...cat, user_id: userId, padrao: true }));
+        const { data: criadas } = await supabase.from("categorias").insert(novas).select();
+        setCategorias(criadas || []);
+      } else { setCategorias(c.data); }
+    } finally {
+      carregandoRef.current = false;
+    }
   };
 
   useEffect(() => {

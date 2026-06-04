@@ -111,13 +111,16 @@ function AppLogado({ session }) {
   const [novidades, setNovidades] = useState({ versao: "", itens: [] });
 
   const gerarDespesasAssinaturas = async (assinaturasData) => {
-    if (assinaturasGeradasRef.current) return; // já rodou nesta sessão
     if (!assinaturasData || assinaturasData.length === 0) return;
-    assinaturasGeradasRef.current = true;
+
     const mes = mesAtual();
+    // Chave no localStorage por usuário + mês — garante 1 execução por mês
+    const chaveLS = `assin_geradas_${userId}_${mes}`;
+    if (localStorage.getItem(chaveLS)) return;
+
     const [ano, mesNum] = mes.split("-").map(Number);
 
-    // Busca TODAS as despesas do mês (pagas e pendentes) para evitar duplicatas
+    // Busca TODAS as despesas do mês para checar duplicatas no banco
     const { data: despesasExistentes } = await supabase
       .from("despesas")
       .select("descricao, data_vencimento")
@@ -126,7 +129,6 @@ function AppLogado({ session }) {
       .gte("data_vencimento", `${mes}-01`)
       .lte("data_vencimento", `${mes}-31`);
 
-    // Chave única: nome + data_vencimento
     const chaves = new Set(
       (despesasExistentes || []).map(d => `${d.descricao}|${d.data_vencimento}`)
     );
@@ -150,7 +152,14 @@ function AppLogado({ session }) {
       }));
 
     if (novas.length > 0) {
-      await supabase.from("despesas").insert(novas);
+      const { error } = await supabase.from("despesas").insert(novas);
+      if (!error) {
+        // Só salva no localStorage se o insert funcionou
+        localStorage.setItem(chaveLS, "1");
+      }
+    } else {
+      // Já existem todas — marca como feito
+      localStorage.setItem(chaveLS, "1");
     }
   };
 
@@ -183,10 +192,7 @@ function AppLogado({ session }) {
     } else { setCategorias(c.data); }
   };
 
-  const assinaturasGeradasRef = React.useRef(false);
-
   useEffect(() => {
-    assinaturasGeradasRef.current = false; // reset ao trocar usuário
     const carregar = async () => {
       setCarregandoDados(true);
       await carregarTudo();

@@ -110,27 +110,16 @@ function AppLogado({ session }) {
   const [bannerSaindo, setBannerSaindo] = useState(false);
   const [novidades, setNovidades] = useState({ versao: "", itens: [] });
 
-  const gerarDespesasAssinaturas = async (assinaturasData) => {
-    if (!assinaturasData || assinaturasData.length === 0) return;
-
+  const gerarDespesasAssinaturas = async (assinaturasData, despesasExistentes) => {
+    if (!assinaturasData || assinaturasData.length === 0) return [];
     const mes = mesAtual();
-    // Chave no localStorage por usuário + mês — garante 1 execução por mês
-    const chaveLS = `assin_geradas_${userId}_${mes}`;
-    if (localStorage.getItem(chaveLS)) return;
-
     const [ano, mesNum] = mes.split("-").map(Number);
 
-    // Busca TODAS as despesas do mês para checar duplicatas no banco
-    const { data: despesasExistentes } = await supabase
-      .from("despesas")
-      .select("descricao, data_vencimento, parcela_atual")
-      .eq("user_id", userId)
-      .gte("data_vencimento", `${mes}-01`)
-      .lte("data_vencimento", `${mes}-31`);
-
+    // Usa as despesas já carregadas — sem nova query ao banco
+    // Filtra só despesas sem parcela (não são parcelamentos)
     const chaves = new Set(
       (despesasExistentes || [])
-        .filter(d => d.parcela_atual === null)
+        .filter(d => d.parcela_atual === null && d.parcelas_total === null)
         .map(d => `${d.descricao}|${d.data_vencimento}`)
     );
 
@@ -153,15 +142,10 @@ function AppLogado({ session }) {
       }));
 
     if (novas.length > 0) {
-      const { error } = await supabase.from("despesas").insert(novas);
-      if (!error) {
-        // Só salva no localStorage se o insert funcionou
-        localStorage.setItem(chaveLS, "1");
-      }
-    } else {
-      // Já existem todas — marca como feito
-      localStorage.setItem(chaveLS, "1");
+      const { data: inseridas, error } = await supabase.from("despesas").insert(novas).select();
+      if (!error && inseridas) return inseridas;
     }
+    return [];
   };
 
   const carregarTudo = async () => {
@@ -179,12 +163,11 @@ function AppLogado({ session }) {
     setIsAdmin(prof.data?.is_admin || false);
     await supabase.from("profiles").update({ ultimo_login: new Date().toISOString() }).eq("id", userId);
 
-    // Gera despesas das assinaturas do mês atual se ainda não existirem
-    await gerarDespesasAssinaturas(a.data || []);
-
-    // Recarrega despesas após geração
-    const { data: despesasAtualizadas } = await supabase.from("despesas").select("*").eq("user_id", userId);
-    setDespesas(despesasAtualizadas || []);
+    // Gera despesas das assinaturas do mês atual passando as já existentes
+    // Evita race condition: usa os dados já carregados, sem nova query
+    const novasGeradas = await gerarDespesasAssinaturas(a.data || [], d.data || []);
+    // Combina despesas existentes + novas geradas em um único setState
+    setDespesas([...(d.data || []), ...novasGeradas]);
 
     if (!c.data || c.data.length === 0) {
       const novas = CATEGORIAS_PADRAO.map(cat => ({ ...cat, user_id: userId, padrao: true }));

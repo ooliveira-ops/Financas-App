@@ -38,19 +38,34 @@ export default function Auth() {
       return mostrarMsg("A senha precisa ter pelo menos 6 caracteres", "error");
     setCarregando(true); setMensagem(null);
 
+    // 1. Só VERIFICA se o token é válido e está disponível — não consome ainda
     const { data: tokenValido, error: errToken } = await supabase.rpc(
-      "validar_codigo_acesso",
-      { codigo_input: token.trim().toUpperCase(), email_input: email }
+      "verificar_codigo_acesso",
+      { codigo_input: token.trim().toUpperCase() }
     );
     if (errToken) { setCarregando(false); return mostrarMsg("Erro ao validar token. Tente novamente.", "error"); }
     if (!tokenValido) { setCarregando(false); return mostrarMsg("Token inválido ou já utilizado. Solicite um novo token.", "error"); }
 
-    const { error } = await supabase.auth.signUp({
+    // 2. Cria a conta
+    const { data: signUpData, error } = await supabase.auth.signUp({
       email, password: senha, options: { data: { nome } },
     });
+
+    if (error) {
+      setCarregando(false);
+      return mostrarMsg(traduzErro(error.message), "error");
+    }
+
+    // 3. Só consome o token APÓS o signUp ter sucesso
+    await supabase.rpc("consumir_codigo_acesso", {
+      codigo_input: token.trim().toUpperCase(),
+      email_input: email,
+    });
+
     setCarregando(false);
-    if (error) mostrarMsg(traduzErro(error.message), "error");
-    else { mostrarMsg("Conta criada! Verifique seu email e depois faça login.", "success"); setModo("login"); setToken(""); }
+    mostrarMsg("Conta criada! Verifique seu email e depois faça login.", "success");
+    setModo("login");
+    setToken("");
   };
 
   const handleRecuperar = async () => {

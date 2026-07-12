@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { Wallet, Mail, Lock, User, Loader2, ArrowLeft, KeyRound } from "lucide-react";
 import { supabase } from "./supabase";
 
+// Número de WhatsApp de contato, vindo do .env.local (não fica craveado no código).
+const WHATSAPP_NUMERO = import.meta.env.VITE_WHATSAPP_NUMERO;
+
 export default function Auth() {
   const [modo, setModo] = useState("login");
   const [email, setEmail] = useState("");
@@ -176,7 +179,7 @@ export default function Auth() {
                 <div className="bg-blue-500/[0.07] border border-blue-500/20 rounded-xl p-3">
                   <p className="text-xs text-slate-400/80 font-body leading-relaxed">
                     🔑 <span className="text-blue-400 font-medium">Acesso restrito por token.</span><br />
-                    Como esse site é visível a todos, algumas permissões são restritas. Entre em contato com o Filipe sobre dúvidas e o seu TOKEN.
+                    Como esse site é visível a todos, algumas permissões são restritas. Entre em contato com quem te deu acesso sobre dúvidas e o seu TOKEN.
                   </p>
                 </div>
               </>
@@ -213,17 +216,19 @@ export default function Auth() {
 
         <div className="mt-8 text-center space-y-2">
           <p className="font-body text-[11px] text-slate-400/25">created by Filipe Oliveira</p>
-          <p className="font-body text-xs text-slate-400/50">
-            Dúvida?{" "}
-            <a
-              href="https://wa.me/SEU_NUMERO_AQUI"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
-            >
-              Entre em contato com o Filipe!
-            </a>
-          </p>
+          {WHATSAPP_NUMERO && (
+            <p className="font-body text-xs text-slate-400/50">
+              Dúvida?{" "}
+              <a
+                href={`https://wa.me/${WHATSAPP_NUMERO}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
+              >
+                Entre em contato pelo WhatsApp!
+              </a>
+            </p>
+          )}
         </div>
       </div>
     </div>

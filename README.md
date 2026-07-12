@@ -17,6 +17,8 @@ App de controle financeiro pessoal com **receitas, despesas parceladas, categori
 - 🗂️ **Histórico por mês** — veja despesas de qualquer mês e exporte em PDF
 - 📄 **Relatório PDF** — gera relatório completo do mês com um clique
 - 🔔 **Avisos de vencimento** — alerta para contas vencidas ou vencendo em 7 dias
+- 📧 **Notificação por e-mail** — recebe um e-mail automático sempre que uma despesa nova é cadastrada (via Resend + Supabase Edge Function)
+- ❓ **Botão de Dúvidas** — cada seção (Despesas, Receitas, Assinaturas, Parcelamentos, Gráfico, Histórico, Home) tem um botão de ajuda explicando como aquela função funciona, com passo a passo
 - 🛡️ **Painel Admin** — gerencia usuários, último login, permissões e publica novidades
 - 📢 **Sistema de novidades** — admin publica atualizações pelo painel, sem tocar no código
 - 💡 **Saldo real** — só exibido quando há receita cadastrada no mês
@@ -28,7 +30,8 @@ App de controle financeiro pessoal com **receitas, despesas parceladas, categori
 
 - **React 19** + **Vite**
 - **Tailwind CSS** (tema personalizado)
-- **Supabase** (PostgreSQL + Auth + RLS)
+- **Supabase** (PostgreSQL + Auth + RLS + Edge Functions)
+- **Resend** (envio de e-mails transacionais)
 - **Recharts** (gráficos de área)
 - **jsPDF + jspdf-autotable** (exportação PDF)
 - **Lucide Icons**
@@ -40,10 +43,15 @@ App de controle financeiro pessoal com **receitas, despesas parceladas, categori
 
 ```
 src/
-├── App.jsx        # Toda a lógica: abas, modais, cálculos, gráfico, admin
+├── App.jsx        # Toda a lógica: abas, modais, cálculos, gráfico, admin, botões de Dúvidas
 ├── Auth.jsx       # Login, cadastro com token e recuperação de senha
 ├── supabase.js    # Cliente Supabase
 └── main.jsx       # Entry point
+
+supabase/
+└── functions/
+    └── notificar-despesa/
+        └── index.ts   # Edge Function que envia o email de notificação via Resend
 ```
 
 ---
@@ -256,14 +264,18 @@ ORDER BY id;
 
 ### 7️⃣ Configurar variáveis de ambiente
 
-Crie `.env.local` na raiz:
+Crie `.env.local` na raiz (esse arquivo **não vai pro GitHub** — confira se `.env.local` está no seu `.gitignore`):
 
 ```env
 VITE_SUPABASE_URL=https://seu-projeto.supabase.co
 VITE_SUPABASE_ANON_KEY=sua-chave-anon-aqui
+VITE_WHATSAPP_NUMERO=SEU_NUMERO_AQUI
 ```
 
-Chaves em: Supabase → **Project Settings → API**
+- As duas primeiras chaves ficam em: Supabase → **Project Settings → API**
+- `VITE_WHATSAPP_NUMERO` é opcional — é o número (com DDI+DDD, ex: `5518999999999`) que aparece no link de contato da tela de login. Se não configurar, o link simplesmente não aparece.
+
+> ⚠️ **Nunca** coloque números de telefone, e-mails pessoais ou qualquer dado real direto no código. Sempre use variáveis de ambiente (`.env.local`), já que esse repositório é público — qualquer coisa escrita direto no código fica visível pra qualquer pessoa, inclusive no histórico de commits.
 
 ### 8️⃣ Rodar localmente
 
@@ -277,10 +289,42 @@ Abre em http://localhost:5173
 
 1. Acesse [vercel.com](https://vercel.com) e conecte o GitHub
 2. **Import Project** → selecione o repositório
-3. Adicione as **Environment Variables** (`VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`)
+3. Adicione as **Environment Variables** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e `VITE_WHATSAPP_NUMERO`, se for usar)
 4. **Deploy** — pronto! 🎉
 
 > Branches diferentes da `main` geram Preview Deployments automáticos com URL própria.
+
+---
+
+## 📧 Configurar notificação de despesa por e-mail (opcional)
+
+Sempre que uma despesa nova é cadastrada, o app pode mandar um e-mail automático pro dono da conta, usando a [Resend](https://resend.com) (envio de e-mails) e uma **Supabase Edge Function**.
+
+### 1. Criar conta na Resend
+1. Crie uma conta grátis em [resend.com](https://resend.com) (o plano grátis dá 3.000 e-mails/mês)
+2. Em **API Keys → Create API Key**, escolha permissão **Sending access** e copie a chave gerada (`re_xxxxxxxx`)
+
+### 2. Publicar a Edge Function
+Com a [Supabase CLI](https://supabase.com/docs/guides/cli) instalada:
+
+```bash
+supabase login
+supabase link --project-ref SEU_PROJECT_REF
+supabase functions deploy notificar-despesa
+supabase secrets set RESEND_API_KEY=re_xxxxxxxx
+```
+
+> O `SEU_PROJECT_REF` fica em **Project Settings → General → Reference ID**, no painel do Supabase.
+
+### 3. Criar o Database Webhook
+No painel do Supabase → **Integrations → Database Webhooks → Webhooks → Create a new hook**:
+
+- **Table:** `despesas`
+- **Events:** só **Insert**
+- **Type:** Supabase Edge Functions
+- **Edge Function:** `notificar-despesa`
+
+Pronto — a partir daqui, toda despesa nova cadastrada dispara o e-mail automaticamente. Enquanto você não verificar um domínio próprio na Resend, o e-mail chega com o remetente `onboarding@resend.dev` (funciona normalmente, só muda a "cara" do remetente).
 
 ---
 
@@ -323,12 +367,25 @@ Cada usuário vê o banner **uma vez por versão**.
 
 ---
 
+## ❓ Editar os textos do botão de Dúvidas
+
+Cada seção do app (Despesas, Receitas, Assinaturas, Parcelamentos, Gráfico, Histórico, Home) tem um botão de ajuda no cabeçalho. O texto de cada um fica em um único lugar, fácil de editar:
+
+1. Abra `src/App.jsx`
+2. Procure por `AJUDA_CONTEUDO`
+3. Edite o `explicacao` ou os itens de `passos` da seção que quiser mudar
+
+Pra adicionar ajuda numa seção nova, basta criar uma nova chave nesse objeto e colocar `<BotaoAjuda topico="sua_chave"/>` no cabeçalho da tela.
+
+---
+
 ## 🛡️ Segurança e admin
 
 - O painel **Admin** só aparece para usuários com `is_admin = true` no banco
 - Para garantir acesso em caso de perda de conta, marque uma segunda conta como admin pelo painel ou direto no Supabase → Table Editor → profiles → `is_admin = true`
 - Dados de cada usuário são isolados via **Row Level Security (RLS)**
 - O acesso ao app é restrito por tokens distribuídos pelo dono do deploy
+- Este repositório é **público** — nunca cole dados pessoais (telefone, e-mail, chaves de API) direto no código. Use sempre variáveis de ambiente (`.env.local`, nunca commitado) ou os "Secrets" do Supabase/Vercel
 
 ---
 

@@ -17,7 +17,6 @@ App de controle financeiro pessoal com **receitas, despesas parceladas, categori
 - 🗂️ **Histórico por mês** — veja despesas de qualquer mês e exporte em PDF
 - 📄 **Relatório PDF** — gera relatório completo do mês com um clique
 - 🔔 **Avisos de vencimento** — alerta para contas vencidas ou vencendo em 7 dias
-- 📧 **Notificação por e-mail** — recebe um e-mail automático sempre que uma despesa nova é cadastrada (via Resend + Supabase Edge Function)
 - ❓ **Botão de Dúvidas** — cada seção (Despesas, Receitas, Assinaturas, Parcelamentos, Gráfico, Histórico, Home) tem um botão de ajuda explicando como aquela função funciona, com passo a passo
 - 🛡️ **Painel Admin** — gerencia usuários, último login, permissões e publica novidades
 - 📢 **Sistema de novidades** — admin publica atualizações pelo painel, sem tocar no código
@@ -30,8 +29,7 @@ App de controle financeiro pessoal com **receitas, despesas parceladas, categori
 
 - **React 19** + **Vite**
 - **Tailwind CSS** (tema personalizado)
-- **Supabase** (PostgreSQL + Auth + RLS + Edge Functions)
-- **Resend** (envio de e-mails transacionais)
+- **Supabase** (PostgreSQL + Auth + RLS)
 - **Recharts** (gráficos de área)
 - **jsPDF + jspdf-autotable** (exportação PDF)
 - **Lucide Icons**
@@ -47,11 +45,6 @@ src/
 ├── Auth.jsx       # Login, cadastro com token e recuperação de senha
 ├── supabase.js    # Cliente Supabase
 └── main.jsx       # Entry point
-
-supabase/
-└── functions/
-    └── notificar-despesa/
-        └── index.ts   # Edge Function que envia o email de notificação via Resend
 ```
 
 ---
@@ -293,38 +286,6 @@ Abre em http://localhost:5173
 4. **Deploy** — pronto! 🎉
 
 > Branches diferentes da `main` geram Preview Deployments automáticos com URL própria.
-
----
-
-## 📧 Configurar notificação de despesa por e-mail (opcional)
-
-Sempre que uma despesa nova é cadastrada, o app pode mandar um e-mail automático pro dono da conta, usando a [Resend](https://resend.com) (envio de e-mails) e uma **Supabase Edge Function**.
-
-### 1. Criar conta na Resend
-1. Crie uma conta grátis em [resend.com](https://resend.com) (o plano grátis dá 3.000 e-mails/mês)
-2. Em **API Keys → Create API Key**, escolha permissão **Sending access** e copie a chave gerada (`re_xxxxxxxx`)
-
-### 2. Publicar a Edge Function
-Com a [Supabase CLI](https://supabase.com/docs/guides/cli) instalada:
-
-```bash
-supabase login
-supabase link --project-ref SEU_PROJECT_REF
-supabase functions deploy notificar-despesa
-supabase secrets set RESEND_API_KEY=re_xxxxxxxx
-```
-
-> O `SEU_PROJECT_REF` fica em **Project Settings → General → Reference ID**, no painel do Supabase.
-
-### 3. Criar o Database Webhook
-No painel do Supabase → **Integrations → Database Webhooks → Webhooks → Create a new hook**:
-
-- **Table:** `despesas`
-- **Events:** só **Insert**
-- **Type:** Supabase Edge Functions
-- **Edge Function:** `notificar-despesa`
-
-Pronto — a partir daqui, toda despesa nova cadastrada dispara o e-mail automaticamente. Enquanto você não verificar um domínio próprio na Resend, o e-mail chega com o remetente `onboarding@resend.dev` (funciona normalmente, só muda a "cara" do remetente).
 
 ---
 

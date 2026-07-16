@@ -172,6 +172,15 @@ const formatarDataHora = (iso) => {
   return new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
 };
 
+// Mescla a lista mais atual do estado local com o que veio do banco, por id.
+// Nunca descarta um item local que ainda não existe em "doBanco" (evita apagar
+// algo que acabou de ser criado/alterado localmente enquanto essa busca rodava).
+const mesclarPorId = (listaLocal, doBanco) => {
+  const mapa = new Map(listaLocal.map(item => [item.id, item]));
+  (doBanco || []).forEach(item => mapa.set(item.id, item));
+  return Array.from(mapa.values());
+};
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [carregandoSession, setCarregandoSession] = useState(true);
@@ -301,8 +310,14 @@ function AppLogado({ session }) {
     carregar();
   }, [userId]);
 
-  const adicionarReceita = async (n) => { const { data, error } = await supabase.from("receitas").insert({ ...n, user_id: userId }).select().single(); if (!error && data) setReceitas([...receitas, data]); };
-  const removerReceita = async (id) => { const { error } = await supabase.from("receitas").delete().eq("id", id); if (!error) setReceitas(receitas.filter(r => r.id !== id)); };
+  const adicionarReceita = async (n) => {
+    const { data, error } = await supabase.from("receitas").insert({ ...n, user_id: userId }).select().single();
+    if (!error && data) setReceitas(prev => [...prev, data]);
+  };
+  const removerReceita = async (id) => {
+    const { error } = await supabase.from("receitas").delete().eq("id", id);
+    if (!error) setReceitas(prev => prev.filter(r => r.id !== id));
+  };
 
   const adicionarDespesa = async (n) => {
     const { parcelas, dataVencimento, ...resto } = n;
@@ -314,25 +329,46 @@ function AppLogado({ session }) {
       lista.push({ ...resto, user_id: userId, data: dataStr, data_vencimento: dataStr, status: "pendente", parcela_atual: parcelas > 1 ? i + 1 : null, parcelas_total: parcelas > 1 ? parcelas : null });
     }
     const { data, error } = await supabase.from("despesas").insert(lista).select();
-    if (!error && data) setDespesas([...despesas, ...data]);
+    if (!error && data) setDespesas(prev => [...prev, ...data]);
   };
-  const removerDespesa = async (id) => { const { error } = await supabase.from("despesas").delete().eq("id", id); if (!error) setDespesas(despesas.filter(d => d.id !== id)); };
+  const removerDespesa = async (id) => {
+    const { error } = await supabase.from("despesas").delete().eq("id", id);
+    if (!error) setDespesas(prev => prev.filter(d => d.id !== id));
+  };
   const marcarComoPaga = async (id) => {
     const { data, error } = await supabase.from("despesas").update({ status: "paga", data_pagamento: hojeISO() }).eq("id", id).select().single();
-    if (!error && data) setDespesas(despesas.map(d => d.id === id ? data : d));
+    if (!error && data) setDespesas(prev => prev.map(d => d.id === id ? data : d));
   };
 
   const adicionarAssinatura = async (n) => {
     const { data, error } = await supabase.from("assinaturas").insert({ ...n, user_id: userId }).select().single();
-    if (!error && data) { setAssinaturas([...assinaturas, data]); setTimeout(async () => { const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId); setDespesas(nd || []); }, 1000); }
+    if (!error && data) {
+      setAssinaturas(prev => [...prev, data]);
+      // Busca só as despesas que essa nova assinatura pode ter gerado e mescla
+      // por id na lista atual — nunca sobrescreve a lista inteira, então nada
+      // que você tenha marcado como pago nesse meio-tempo se perde.
+      setTimeout(async () => {
+        const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId);
+        if (nd) setDespesas(prev => mesclarPorId(prev, nd));
+      }, 1000);
+    }
   };
-  const removerAssinatura = async (id) => { const { error } = await supabase.from("assinaturas").delete().eq("id", id); if (!error) setAssinaturas(assinaturas.filter(a => a.id !== id)); };
+  const removerAssinatura = async (id) => {
+    const { error } = await supabase.from("assinaturas").delete().eq("id", id);
+    if (!error) setAssinaturas(prev => prev.filter(a => a.id !== id));
+  };
 
   const adicionarParcelamento = async (n) => {
     if (!n.descricao || !n.valor_total || !n.parcelas_total) { alert("Preencha todos os campos"); return; }
     const { data, error } = await supabase.from("parcelamentos").insert({ descricao: n.descricao, valor_total: parseFloat(n.valor_total), parcelas_total: parseInt(n.parcelas_total), parcelas_pagas: 0, valor_pago: 0, user_id: userId, proxima_parcela_data: n.dataInicio, categoria_id: null, status: "ativo" }).select().single();
     if (error) { alert("Erro: " + error.message); return; }
-    if (data) { setParcelamentos([...parcelamentos, data]); setTimeout(async () => { const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId); setDespesas(nd || []); }, 1500); }
+    if (data) {
+      setParcelamentos(prev => [...prev, data]);
+      setTimeout(async () => {
+        const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId);
+        if (nd) setDespesas(prev => mesclarPorId(prev, nd));
+      }, 1500);
+    }
   };
   const marcarParcelaComoPaga = async (id) => {
     const parc = parcelamentos.find(p => p.id === id);
@@ -341,11 +377,27 @@ function AppLogado({ session }) {
     const novoValorPago = (parc.valor_pago || 0) + (parc.valor_total / parc.parcelas_total);
     const { data, error } = await supabase.from("parcelamentos").update({ parcelas_pagas: novasParcelas, valor_pago: novoValorPago, status: novasParcelas >= parc.parcelas_total ? "finalizado" : "ativo" }).eq("id", id).select().single();
     if (error) { alert("Erro: " + error.message); return; }
-    if (data) { setParcelamentos(parcelamentos.map(p => p.id === id ? data : p)); setTimeout(async () => { const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId); setDespesas(nd || []); }, 500); }
+    if (data) {
+      setParcelamentos(prev => prev.map(p => p.id === id ? data : p));
+      setTimeout(async () => {
+        const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId);
+        if (nd) setDespesas(prev => mesclarPorId(prev, nd));
+      }, 500);
+    }
   };
-  const removerParcelamento = async (id) => { const { error } = await supabase.from("parcelamentos").delete().eq("id", id); if (!error) setParcelamentos(parcelamentos.filter(p => p.id !== id)); };
-  const adicionarCategoria = async (n) => { const { data, error } = await supabase.from("categorias").insert({ ...n, user_id: userId, padrao: false }).select().single(); if (!error && data) setCategorias([...categorias, data]); };
-  const removerCategoria = async (id) => { if (despesas.some(d => d.categoria_id === id)) { alert("Não é possível remover: existem despesas nesta categoria."); return; } const { error } = await supabase.from("categorias").delete().eq("id", id); if (!error) setCategorias(categorias.filter(c => c.id !== id)); };
+  const removerParcelamento = async (id) => {
+    const { error } = await supabase.from("parcelamentos").delete().eq("id", id);
+    if (!error) setParcelamentos(prev => prev.filter(p => p.id !== id));
+  };
+  const adicionarCategoria = async (n) => {
+    const { data, error } = await supabase.from("categorias").insert({ ...n, user_id: userId, padrao: false }).select().single();
+    if (!error && data) setCategorias(prev => [...prev, data]);
+  };
+  const removerCategoria = async (id) => {
+    if (despesas.some(d => d.categoria_id === id)) { alert("Não é possível remover: existem despesas nesta categoria."); return; }
+    const { error } = await supabase.from("categorias").delete().eq("id", id);
+    if (!error) setCategorias(prev => prev.filter(c => c.id !== id));
+  };
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
   // Busca novidades do Supabase e mostra 1 vez por versão
@@ -603,7 +655,7 @@ function UsuariosAba() {
 
   const toggleAdmin = async (id, atual) => {
     const { error } = await supabase.from("profiles").update({ is_admin: !atual }).eq("id", id);
-    if (!error) setUsuarios(usuarios.map(u => u.id === id ? { ...u, is_admin: !atual } : u));
+    if (!error) setUsuarios(prev => prev.map(u => u.id === id ? { ...u, is_admin: !atual } : u));
   };
 
   return (
@@ -698,6 +750,11 @@ function PainelNovidades() {
   };
 
   const removerItem = (i) => setNovidades(novidades.filter((_, idx) => idx !== i));
+    setNovidades(prev => [...prev, novoItem.trim()]);
+    setNovoItem("");
+  };
+
+  const removerItem = (i) => setNovidades(prev => prev.filter((_, idx) => idx !== i));
 
   const salvar = async () => {
     if (!novaVersao.trim() || novidades.length === 0) return;

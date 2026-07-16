@@ -654,8 +654,9 @@ function UsuariosAba() {
   useEffect(() => { carregar(); }, []);
 
   const toggleAdmin = async (id, atual) => {
-    const { error } = await supabase.from("profiles").update({ is_admin: !atual }).eq("id", id);
+    const { error } = await supabase.rpc("toggle_user_admin", { target_id: id, novo_valor: !atual });
     if (!error) setUsuarios(prev => prev.map(u => u.id === id ? { ...u, is_admin: !atual } : u));
+    else alert("Erro: " + error.message);
   };
 
   return (

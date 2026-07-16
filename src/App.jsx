@@ -826,7 +826,7 @@ function PainelNovidades() {
       </button>
     </div>
   );
-}
+
 
 // ── HISTÓRICO ────────────────────────────────────────────────────────────────────
 function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome }) {

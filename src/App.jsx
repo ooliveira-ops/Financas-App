@@ -172,9 +172,6 @@ const formatarDataHora = (iso) => {
   return new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
 };
 
-// Mescla a lista mais atual do estado local com o que veio do banco, por id.
-// Nunca descarta um item local que ainda não existe em "doBanco" (evita apagar
-// algo que acabou de ser criado/alterado localmente enquanto essa busca rodava).
 const mesclarPorId = (listaLocal, doBanco) => {
   const mapa = new Map(listaLocal.map(item => [item.id, item]));
   (doBanco || []).forEach(item => mapa.set(item.id, item));
@@ -344,9 +341,6 @@ function AppLogado({ session }) {
     const { data, error } = await supabase.from("assinaturas").insert({ ...n, user_id: userId }).select().single();
     if (!error && data) {
       setAssinaturas(prev => [...prev, data]);
-      // Busca só as despesas que essa nova assinatura pode ter gerado e mescla
-      // por id na lista atual — nunca sobrescreve a lista inteira, então nada
-      // que você tenha marcado como pago nesse meio-tempo se perde.
       setTimeout(async () => {
         const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId);
         if (nd) setDespesas(prev => mesclarPorId(prev, nd));

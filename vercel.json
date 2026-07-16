@@ -21,5 +21,11 @@
         { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/ping",
+      "schedule": "0 10 */3 * *"
+    }
   ]
 }

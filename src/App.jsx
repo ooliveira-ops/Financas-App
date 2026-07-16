@@ -6,7 +6,7 @@ import {
   Plus, Trash2, Wallet, X, TrendingUp, Repeat, Home, PieChart as PieIcon,
   Check, GraduationCap, Utensils, User, Car, ShoppingBag, Heart, Plane,
   Coffee, Tag, LogOut, Loader2, Clock, History, CheckCircle2, Bell, Zap,
-  FileDown, Shield, BarChart2, RefreshCw,
+  FileDown, Shield, BarChart2, RefreshCw, HelpCircle,
 } from "lucide-react";
 import { supabase } from "./supabase";
 import Auth from "./Auth";
@@ -14,7 +14,7 @@ import Auth from "./Auth";
 const QUOTES = [
   { text: "Tudo posso naquele que me fortalece.", author: "Filipenses 4:13" },
   { text: "O Senhor é o meu pastor e nada me faltará.", author: "Salmos 23:1" },
-  { text: "Porque sou eu que conheço os planos que tenho para vocês.", author: "Jeremias 29:11" },F
+  { text: "Porque sou eu que conheço os planos que tenho para vocês.", author: "Jeremias 29:11" },
   { text: "Confie no Senhor de todo o seu coração.", author: "Provérbios 3:5" },
   { text: "Honre o Senhor com a sua riqueza e com as primícias.", author: "Provérbios 3:9" },
   { text: "Não acumulem para si tesouros na terra.", author: "Mateus 6:19" },
@@ -40,13 +40,7 @@ const QUOTES = [
 
 const ICONS_MAP = { GraduationCap, Utensils, User, Home, Car, ShoppingBag, Heart, Plane, Coffee, Tag };
 
-const ULTIMAS_ATUALIZACOES = [
-  "✔︎ Aba Gráfico — visualize seus gastos dos últimos 6 meses",
-  "✔︎ Aba Histórico — veja e exporte despesas por mês em PDF",
-  "✔︎ Painel Admin — gerencie usuários e permissões",
-  "✔︎ Saldo corrigido — exibido apenas quando há receita cadastrada",
-  "✔︎ Novo design — tema azul escuro renovado",
-];
+// Novidades são gerenciadas pelo painel admin — sem editar código!
 
 const CATEGORIAS_PADRAO = [
   { nome: "Faculdade", cor: "#60a5fa", icone: "GraduationCap" },
@@ -57,6 +51,103 @@ const CATEGORIAS_PADRAO = [
 ];
 
 const CORES_PIZZA = ["#60a5fa", "#34d399", "#a78bfa", "#38bdf8", "#6ee7b7", "#93c5fd", "#4ade80", "#818cf8"];
+
+// Conteúdo do botão "Dúvidas" de cada seção — edite os textos aqui sempre que quiser mudar as explicações
+const AJUDA_CONTEUDO = {
+  home: {
+    titulo: "Como funciona a Home",
+    explicacao: "A Home mostra um resumo geral do seu mês: quanto entrou (receitas), quanto já foi pago, quanto ainda falta pagar e o saldo. Também mostra suas próximas assinaturas e permite gerar um relatório em PDF do mês.",
+    passos: [
+      "Cadastre suas receitas do mês na aba Receitas para o saldo aparecer aqui.",
+      "Conforme você marca despesas como pagas, os cards 'Pago' e 'A pagar' vão se atualizando sozinhos.",
+      "Clique em 'Gerar Relatório do Mês' quando quiser baixar um PDF com tudo o que aconteceu no mês.",
+    ],
+  },
+  despesas: {
+    titulo: "Como funciona Despesas",
+    explicacao: "Aqui ficam seus gastos do mês, separados em 'Pendentes' (ainda não pagos) e 'Histórico' (já pagos). Uma despesa também pode ser parcelada direto por aqui.",
+    passos: [
+      "Clique em 'Nova' e preencha a descrição (ex: Almoço), o valor e a data de vencimento.",
+      "Se quiser dividir em várias vezes, mude o campo 'Parcelas' — o valor de cada parcela é calculado automaticamente.",
+      "Quando pagar uma despesa, clique no ícone de check (✓) para marcá-la como paga e ela vai para o Histórico.",
+    ],
+  },
+  receitas: {
+    titulo: "Como funciona Receitas",
+    explicacao: "É onde você registra o dinheiro que entra no mês, como salário, freelas ou qualquer outra fonte de renda. É a partir daqui que o app calcula seu saldo.",
+    passos: [
+      "Clique em 'Nova' e informe de onde veio o dinheiro (ex: Salário) e o valor.",
+      "A receita é sempre associada ao mês atual automaticamente.",
+      "Repita sempre que receber um novo valor, mesmo que seja mais de uma vez no mês.",
+    ],
+  },
+  assinaturas: {
+    titulo: "Como funcionam as Assinaturas",
+    explicacao: "Assinaturas são gastos fixos que se repetem todo mês, como Netflix ou academia. O app gera automaticamente uma despesa desse valor todo mês, no dia de vencimento que você escolher.",
+    passos: [
+      "Clique em 'Nova' e informe o nome (ex: Netflix), o valor e o dia do mês em que ela vence.",
+      "Assim que o mês virar, o app cria sozinho a despesa correspondente na aba Despesas.",
+      "Se cancelar o serviço, é só remover a assinatura daqui que ela para de gerar novas despesas.",
+    ],
+  },
+  parcelamentos: {
+    titulo: "Como funcionam os Parcelamentos",
+    explicacao: "Parcelamentos servem para compras grandes divididas em várias vezes, como um celular em 10x. Diferente da despesa parcelada simples, aqui você acompanha o progresso de pagamento parcela por parcela.",
+    passos: [
+      "Clique em 'Novo' e informe a descrição (ex: Monitor), o valor total e em quantas parcelas foi dividido.",
+      "A barra de progresso mostra quantas parcelas já foram pagas em relação ao total.",
+      "Clique em 'Marcar próxima como paga' sempre que uma parcela for quitada.",
+    ],
+  },
+  grafico: {
+    titulo: "Como funciona o Gráfico",
+    explicacao: "Essa aba mostra a evolução das suas finanças nos últimos 6 meses, comparando receitas, despesas pagas, pendentes e assinaturas mês a mês.",
+    passos: [
+      "Passe o mouse sobre os gráficos para ver os valores exatos de cada mês.",
+      "Use o primeiro gráfico para comparar quanto entrou (receitas) com quanto saiu (pagas).",
+      "Use o segundo gráfico para ver o quanto ainda está pendente e o peso das assinaturas fixas.",
+    ],
+  },
+  historico: {
+    titulo: "Como funciona o Histórico",
+    explicacao: "O Histórico reúne, em ordem, tudo que já aconteceu nas suas finanças: despesas pagas, receitas recebidas e parcelas quitadas — uma espécie de linha do tempo.",
+    passos: [
+      "Use essa aba quando quiser conferir tudo que já foi movimentado, sem precisar entrar em cada seção separada.",
+      "É útil para revisar o mês antes de gerar o relatório em PDF na Home.",
+    ],
+  },
+};
+
+function BotaoAjuda({ topico }) {
+  const [aberto, setAberto] = useState(false);
+  const conteudo = AJUDA_CONTEUDO[topico];
+  if (!conteudo) return null;
+  return (
+    <>
+      <button
+        onClick={() => setAberto(true)}
+        title="Dúvidas"
+        className="w-8 h-8 shrink-0 rounded-full bg-white/[0.05] border border-blue-900/30 text-slate-400/70 hover:text-blue-400 hover:border-blue-500/40 transition flex items-center justify-center"
+      >
+        <HelpCircle size={15} />
+      </button>
+      {aberto && (
+        <ModalBase titulo={conteudo.titulo} onFechar={() => setAberto(false)}>
+          <p className="font-body text-sm text-slate-300 leading-relaxed">{conteudo.explicacao}</p>
+          <div className="bg-white/[0.03] border border-blue-900/20 rounded-xl p-4 space-y-3">
+            <p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Passo a passo</p>
+            {conteudo.passos.map((p, i) => (
+              <div key={i} className="flex gap-3 items-start">
+                <span className="font-mono-c text-xs text-blue-400 font-bold mt-0.5">{i + 1}</span>
+                <p className="font-body text-sm text-slate-300">{p}</p>
+              </div>
+            ))}
+          </div>
+        </ModalBase>
+      )}
+    </>
+  );
+}
 
 const formatBRL = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
 const hojeISO = () => new Date().toISOString().split("T")[0];
@@ -79,6 +170,15 @@ const formatarDataBR = (data) => {
 const formatarDataHora = (iso) => {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
+};
+
+// Mescla a lista mais atual do estado local com o que veio do banco, por id.
+// Nunca descarta um item local que ainda não existe em "doBanco" (evita apagar
+// algo que acabou de ser criado/alterado localmente enquanto essa busca rodava).
+const mesclarPorId = (listaLocal, doBanco) => {
+  const mapa = new Map(listaLocal.map(item => [item.id, item]));
+  (doBanco || []).forEach(item => mapa.set(item.id, item));
+  return Array.from(mapa.values());
 };
 
 export default function App() {
@@ -112,39 +212,112 @@ function AppLogado({ session }) {
   const [modalParcelamento, setModalParcelamento] = useState(false);
   const [modalCategoria, setModalCategoria] = useState(false);
   const [avisoFechado, setAvisoFechado] = useState(false);
-  const [mostrarBanner, setMostrarBanner] = useState(true);
+  const carregandoRef = React.useRef(false);
+  const assinaturasGeradasMesRef = React.useRef("");
+  const [mostrarBanner, setMostrarBanner] = useState(false);
   const [bannerSaindo, setBannerSaindo] = useState(false);
+  const [novidades, setNovidades] = useState({ versao: "", itens: [] });
+
+  const gerarDespesasAssinaturas = async (assinaturasData, despesasExistentes) => {
+    if (!assinaturasData || assinaturasData.length === 0) return [];
+    const mes = mesAtual();
+    const [ano, mesNum] = mes.split("-").map(Number);
+
+    // Usa as despesas já carregadas — sem nova query ao banco
+    // Filtra só despesas sem parcela (não são parcelamentos)
+    const chaves = new Set(
+      (despesasExistentes || [])
+        .filter(d => d.parcela_atual === null && d.parcelas_total === null)
+        .map(d => `${d.descricao}|${d.data_vencimento}`)
+    );
+
+    const novas = assinaturasData
+      .map(a => {
+        const dia = Math.min(parseInt(a.dia_vencimento), new Date(ano, mesNum, 0).getDate());
+        const dataVenc = `${mes}-${String(dia).padStart(2, "0")}`;
+        return { a, dataVenc };
+      })
+      .filter(({ a, dataVenc }) => !chaves.has(`${a.nome}|${dataVenc}`))
+      .map(({ a, dataVenc }) => ({
+        user_id: userId,
+        descricao: a.nome,
+        valor: a.valor,
+        data: dataVenc,
+        data_vencimento: dataVenc,
+        status: "pendente",
+        parcela_atual: null,
+        parcelas_total: null,
+      }));
+
+    if (novas.length > 0) {
+      const { data: inseridas, error } = await supabase.from("despesas").insert(novas).select();
+      if (!error && inseridas) return inseridas;
+    }
+    return [];
+  };
 
   const carregarTudo = async () => {
-    const [r, d, a, p, c, prof] = await Promise.all([
-      supabase.from("receitas").select("*").eq("user_id", userId),
-      supabase.from("despesas").select("*").eq("user_id", userId),
-      supabase.from("assinaturas").select("*").eq("user_id", userId),
-      supabase.from("parcelamentos").select("*").eq("user_id", userId),
-      supabase.from("categorias").select("*").eq("user_id", userId),
-      supabase.from("profiles").select("is_admin").eq("id", userId).single(),
-    ]);
-    setReceitas(r.data || []);
-    setDespesas(d.data || []);
-    setAssinaturas(a.data || []);
-    setParcelamentos(p.data || []);
-    setIsAdmin(prof.data?.is_admin || false);
-    // Atualiza ultimo_login
-    await supabase.from("profiles").update({ ultimo_login: new Date().toISOString() }).eq("id", userId);
-    if (!c.data || c.data.length === 0) {
-      const novas = CATEGORIAS_PADRAO.map(cat => ({ ...cat, user_id: userId, padrao: true }));
-      const { data: criadas } = await supabase.from("categorias").insert(novas).select();
-      setCategorias(criadas || []);
-    } else { setCategorias(c.data); }
+    // Mutex: impede execução simultânea
+    if (carregandoRef.current) return;
+    carregandoRef.current = true;
+
+    try {
+      const [r, d, a, p, c, prof] = await Promise.all([
+        supabase.from("receitas").select("*").eq("user_id", userId),
+        supabase.from("despesas").select("*").eq("user_id", userId),
+        supabase.from("assinaturas").select("*").eq("user_id", userId),
+        supabase.from("parcelamentos").select("*").eq("user_id", userId),
+        supabase.from("categorias").select("*").eq("user_id", userId),
+        supabase.from("profiles").select("is_admin").eq("id", userId).single(),
+      ]);
+      setReceitas(r.data || []);
+      setAssinaturas(a.data || []);
+      setParcelamentos(p.data || []);
+      setIsAdmin(prof.data?.is_admin || false);
+      await supabase.from("profiles").update({ ultimo_login: new Date().toISOString() }).eq("id", userId);
+
+      // Só gera despesas de assinaturas se ainda não gerou neste mês
+      const mes = mesAtual();
+      let todasDespesas = d.data || [];
+      if (assinaturasGeradasMesRef.current !== mes) {
+        const novasGeradas = await gerarDespesasAssinaturas(a.data || [], d.data || []);
+        if (novasGeradas.length > 0) {
+          todasDespesas = [...todasDespesas, ...novasGeradas];
+          assinaturasGeradasMesRef.current = mes; // marca que já gerou este mês
+        } else {
+          assinaturasGeradasMesRef.current = mes; // já existiam todas
+        }
+      }
+      setDespesas(todasDespesas);
+
+      if (!c.data || c.data.length === 0) {
+        const novas = CATEGORIAS_PADRAO.map(cat => ({ ...cat, user_id: userId, padrao: true }));
+        const { data: criadas } = await supabase.from("categorias").insert(novas).select();
+        setCategorias(criadas || []);
+      } else { setCategorias(c.data); }
+    } finally {
+      carregandoRef.current = false;
+    }
   };
 
   useEffect(() => {
-    const carregar = async () => { setCarregandoDados(true); await carregarTudo(); setCarregandoDados(false); setQuote(QUOTES[Math.floor(Math.random() * QUOTES.length)]); };
+    const carregar = async () => {
+      setCarregandoDados(true);
+      await carregarTudo();
+      setCarregandoDados(false);
+      setQuote(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
+    };
     carregar();
   }, [userId]);
 
-  const adicionarReceita = async (n) => { const { data, error } = await supabase.from("receitas").insert({ ...n, user_id: userId }).select().single(); if (!error && data) setReceitas([...receitas, data]); };
-  const removerReceita = async (id) => { const { error } = await supabase.from("receitas").delete().eq("id", id); if (!error) setReceitas(receitas.filter(r => r.id !== id)); };
+  const adicionarReceita = async (n) => {
+    const { data, error } = await supabase.from("receitas").insert({ ...n, user_id: userId }).select().single();
+    if (!error && data) setReceitas(prev => [...prev, data]);
+  };
+  const removerReceita = async (id) => {
+    const { error } = await supabase.from("receitas").delete().eq("id", id);
+    if (!error) setReceitas(prev => prev.filter(r => r.id !== id));
+  };
 
   const adicionarDespesa = async (n) => {
     const { parcelas, dataVencimento, ...resto } = n;
@@ -156,25 +329,46 @@ function AppLogado({ session }) {
       lista.push({ ...resto, user_id: userId, data: dataStr, data_vencimento: dataStr, status: "pendente", parcela_atual: parcelas > 1 ? i + 1 : null, parcelas_total: parcelas > 1 ? parcelas : null });
     }
     const { data, error } = await supabase.from("despesas").insert(lista).select();
-    if (!error && data) setDespesas([...despesas, ...data]);
+    if (!error && data) setDespesas(prev => [...prev, ...data]);
   };
-  const removerDespesa = async (id) => { const { error } = await supabase.from("despesas").delete().eq("id", id); if (!error) setDespesas(despesas.filter(d => d.id !== id)); };
+  const removerDespesa = async (id) => {
+    const { error } = await supabase.from("despesas").delete().eq("id", id);
+    if (!error) setDespesas(prev => prev.filter(d => d.id !== id));
+  };
   const marcarComoPaga = async (id) => {
     const { data, error } = await supabase.from("despesas").update({ status: "paga", data_pagamento: hojeISO() }).eq("id", id).select().single();
-    if (!error && data) setDespesas(despesas.map(d => d.id === id ? data : d));
+    if (!error && data) setDespesas(prev => prev.map(d => d.id === id ? data : d));
   };
 
   const adicionarAssinatura = async (n) => {
     const { data, error } = await supabase.from("assinaturas").insert({ ...n, user_id: userId }).select().single();
-    if (!error && data) { setAssinaturas([...assinaturas, data]); setTimeout(async () => { const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId); setDespesas(nd || []); }, 1000); }
+    if (!error && data) {
+      setAssinaturas(prev => [...prev, data]);
+      // Busca só as despesas que essa nova assinatura pode ter gerado e mescla
+      // por id na lista atual — nunca sobrescreve a lista inteira, então nada
+      // que você tenha marcado como pago nesse meio-tempo se perde.
+      setTimeout(async () => {
+        const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId);
+        if (nd) setDespesas(prev => mesclarPorId(prev, nd));
+      }, 1000);
+    }
   };
-  const removerAssinatura = async (id) => { const { error } = await supabase.from("assinaturas").delete().eq("id", id); if (!error) setAssinaturas(assinaturas.filter(a => a.id !== id)); };
+  const removerAssinatura = async (id) => {
+    const { error } = await supabase.from("assinaturas").delete().eq("id", id);
+    if (!error) setAssinaturas(prev => prev.filter(a => a.id !== id));
+  };
 
   const adicionarParcelamento = async (n) => {
     if (!n.descricao || !n.valor_total || !n.parcelas_total) { alert("Preencha todos os campos"); return; }
     const { data, error } = await supabase.from("parcelamentos").insert({ descricao: n.descricao, valor_total: parseFloat(n.valor_total), parcelas_total: parseInt(n.parcelas_total), parcelas_pagas: 0, valor_pago: 0, user_id: userId, proxima_parcela_data: n.dataInicio, categoria_id: null, status: "ativo" }).select().single();
     if (error) { alert("Erro: " + error.message); return; }
-    if (data) { setParcelamentos([...parcelamentos, data]); setTimeout(async () => { const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId); setDespesas(nd || []); }, 1500); }
+    if (data) {
+      setParcelamentos(prev => [...prev, data]);
+      setTimeout(async () => {
+        const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId);
+        if (nd) setDespesas(prev => mesclarPorId(prev, nd));
+      }, 1500);
+    }
   };
   const marcarParcelaComoPaga = async (id) => {
     const parc = parcelamentos.find(p => p.id === id);
@@ -183,20 +377,57 @@ function AppLogado({ session }) {
     const novoValorPago = (parc.valor_pago || 0) + (parc.valor_total / parc.parcelas_total);
     const { data, error } = await supabase.from("parcelamentos").update({ parcelas_pagas: novasParcelas, valor_pago: novoValorPago, status: novasParcelas >= parc.parcelas_total ? "finalizado" : "ativo" }).eq("id", id).select().single();
     if (error) { alert("Erro: " + error.message); return; }
-    if (data) { setParcelamentos(parcelamentos.map(p => p.id === id ? data : p)); setTimeout(async () => { const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId); setDespesas(nd || []); }, 500); }
+    if (data) {
+      setParcelamentos(prev => prev.map(p => p.id === id ? data : p));
+      setTimeout(async () => {
+        const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId);
+        if (nd) setDespesas(prev => mesclarPorId(prev, nd));
+      }, 500);
+    }
   };
-  const removerParcelamento = async (id) => { const { error } = await supabase.from("parcelamentos").delete().eq("id", id); if (!error) setParcelamentos(parcelamentos.filter(p => p.id !== id)); };
-  const adicionarCategoria = async (n) => { const { data, error } = await supabase.from("categorias").insert({ ...n, user_id: userId, padrao: false }).select().single(); if (!error && data) setCategorias([...categorias, data]); };
-  const removerCategoria = async (id) => { if (despesas.some(d => d.categoria_id === id)) { alert("Não é possível remover: existem despesas nesta categoria."); return; } const { error } = await supabase.from("categorias").delete().eq("id", id); if (!error) setCategorias(categorias.filter(c => c.id !== id)); };
+  const removerParcelamento = async (id) => {
+    const { error } = await supabase.from("parcelamentos").delete().eq("id", id);
+    if (!error) setParcelamentos(prev => prev.filter(p => p.id !== id));
+  };
+  const adicionarCategoria = async (n) => {
+    const { data, error } = await supabase.from("categorias").insert({ ...n, user_id: userId, padrao: false }).select().single();
+    if (!error && data) setCategorias(prev => [...prev, data]);
+  };
+  const removerCategoria = async (id) => {
+    if (despesas.some(d => d.categoria_id === id)) { alert("Não é possível remover: existem despesas nesta categoria."); return; }
+    const { error } = await supabase.from("categorias").delete().eq("id", id);
+    if (!error) setCategorias(prev => prev.filter(c => c.id !== id));
+  };
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
-  // Banner de atualizações: aparece por 5s depois some com fade
+  // Busca novidades do Supabase e mostra 1 vez por versão
+  useEffect(() => {
+    const carregarNovidades = async () => {
+      const { data } = await supabase
+        .from("novidades")
+        .select("*")
+        .eq("ativo", true)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (!data) return;
+      const visto = localStorage.getItem("banner_versao_vista");
+      if (visto !== data.versao) {
+        const itens = typeof data.itens === "string" ? JSON.parse(data.itens) : data.itens;
+        setNovidades({ versao: data.versao, itens });
+        setMostrarBanner(true);
+      }
+    };
+    carregarNovidades();
+  }, []);
+
   useEffect(() => {
     if (!mostrarBanner) return;
+    localStorage.setItem("banner_versao_vista", novidades.versao);
     const timerSaida = setTimeout(() => setBannerSaindo(true), 7000);
     const timerSome = setTimeout(() => setMostrarBanner(false), 8000);
     return () => { clearTimeout(timerSaida); clearTimeout(timerSome); };
-  }, []);
+  }, [mostrarBanner]);
 
   const despesasPendentes = useMemo(() => despesas.filter(d => d.status === "pendente" || !d.status), [despesas]);
   const despesasPagas = useMemo(() => despesas.filter(d => d.status === "paga"), [despesas]);
@@ -265,10 +496,10 @@ function AppLogado({ session }) {
             </div>
             {/* Lista de atualizações */}
             <div className="px-6 py-5 space-y-3">
-              {ULTIMAS_ATUALIZACOES.map((item, i) => (
+              {novidades.itens.map((item, i) => (
                 <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.03] border border-blue-900/30">
                   <span className="text-blue-400 mt-0.5 flex-shrink-0">✔︎</span>
-                  <span className="font-body text-sm text-slate-200 leading-relaxed">{item.replace("✔︎ ", "")}</span>
+                  <span className="font-body text-sm text-slate-200 leading-relaxed">{item}</span>
                 </div>
               ))}
             </div>
@@ -351,7 +582,7 @@ function GraficoAba({ despesas, receitas, assinaturas }) {
 
   return (
     <div className="space-y-8 animate-fadeInUp">
-      <div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Visão financeira</p><h2 className="font-display text-3xl italic text-slate-100 mt-1">Gráfico — últimos 6 meses</h2></div>
+      <div className="flex items-center gap-3"><BotaoAjuda topico="grafico"/><div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Visão financeira</p><h2 className="font-display text-3xl italic text-slate-100 mt-1">Gráfico — últimos 6 meses</h2></div></div>
 
       <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl p-6">
         <h3 className="font-display text-lg italic text-slate-200 mb-6">Receitas vs Despesas Pagas</h3>
@@ -424,7 +655,7 @@ function UsuariosAba() {
 
   const toggleAdmin = async (id, atual) => {
     const { error } = await supabase.from("profiles").update({ is_admin: !atual }).eq("id", id);
-    if (!error) setUsuarios(usuarios.map(u => u.id === id ? { ...u, is_admin: !atual } : u));
+    if (!error) setUsuarios(prev => prev.map(u => u.id === id ? { ...u, is_admin: !atual } : u));
   };
 
   return (
@@ -485,6 +716,109 @@ function UsuariosAba() {
           💡 <span className="text-blue-400">Dica:</span> Para garantir acesso em caso de perda de conta, marque outra conta como admin aqui ou no Supabase → Table Editor → profiles → <span className="font-mono-c text-blue-300">is_admin = true</span>.
         </p>
       </div>
+
+      <PainelNovidades />
+    </div>
+  );
+}
+
+// ── PAINEL NOVIDADES (ADMIN) ──────────────────────────────────────────────────────
+function PainelNovidades() {
+  const [novidades, setNovidades] = useState([]);
+  const [versao, setVersao] = useState("");
+  const [novoItem, setNovoItem] = useState("");
+  const [novaVersao, setNovaVersao] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const carregar = async () => {
+    const { data } = await supabase.from("novidades").select("*").order("created_at", { ascending: false }).limit(1).single();
+    if (data) {
+      const itens = typeof data.itens === "string" ? JSON.parse(data.itens) : data.itens;
+      setNovidades(itens);
+      setVersao(data.versao);
+      setNovaVersao(data.versao);
+    }
+  };
+
+  useEffect(() => { carregar(); }, []);
+
+  const adicionarItem = () => {
+    if (!novoItem.trim()) return;
+    setNovidades(prev => [...prev, novoItem.trim()]);
+    setNovoItem("");
+  };
+
+  const removerItem = (i) => setNovidades(prev => prev.filter((_, idx) => idx !== i));
+
+  const salvar = async () => {
+    if (!novaVersao.trim() || novidades.length === 0) return;
+    setSalvando(true); setMsg("");
+    // Desativa todas as versões anteriores
+    await supabase.from("novidades").update({ ativo: false }).neq("versao", novaVersao);
+    // Upsert da nova versão
+    const { error } = await supabase.from("novidades").upsert({
+      versao: novaVersao.trim(),
+      itens: JSON.stringify(novidades),
+      ativo: true,
+    }, { onConflict: "versao" });
+    setSalvando(false);
+    if (error) setMsg("Erro: " + error.message);
+    else { setMsg("✔︎ Salvo! Todos os usuários verão na próxima abertura."); setVersao(novaVersao); }
+  };
+
+  return (
+    <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl p-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-xl italic text-slate-100">📢 Gerenciar Novidades</h3>
+        <span className="font-mono-c text-[10px] text-blue-400/70 border border-blue-500/30 px-2 py-1 rounded-full">versão atual: {versao}</span>
+      </div>
+
+      {/* Lista atual */}
+      <div className="space-y-2">
+        {novidades.map((item, i) => (
+          <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] border border-blue-900/20 group">
+            <span className="text-blue-400 text-xs flex-shrink-0">✔︎</span>
+            <span className="font-body text-sm text-slate-200 flex-1">{item}</span>
+            <button onClick={() => removerItem(i)} className="opacity-0 group-hover:opacity-100 text-slate-400/40 hover:text-red-400 transition-all"><Trash2 size={13}/></button>
+          </div>
+        ))}
+        {novidades.length === 0 && <p className="font-body text-sm text-slate-400/40 text-center py-4">Nenhum item ainda.</p>}
+      </div>
+
+      {/* Adicionar item */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={novoItem}
+          onChange={e => setNovoItem(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && adicionarItem()}
+          placeholder="Nova novidade... (Enter para adicionar)"
+          className="flex-1 bg-white/[0.03] border border-blue-900/40 rounded-xl px-4 py-2.5 text-slate-100 placeholder:text-slate-400/40 focus:outline-none focus:border-blue-500/50 text-sm"
+        />
+        <button onClick={adicionarItem} className="px-4 py-2.5 bg-blue-600/20 border border-blue-500/30 text-blue-300 rounded-xl hover:bg-blue-600/30 transition-all">
+          <Plus size={16}/>
+        </button>
+      </div>
+
+      {/* Versão */}
+      <div className="flex gap-2 items-center">
+        <span className="font-body text-xs text-slate-400/60 flex-shrink-0">Versão:</span>
+        <input
+          type="text"
+          value={novaVersao}
+          onChange={e => setNovaVersao(e.target.value)}
+          placeholder="ex: v4"
+          className="w-24 bg-white/[0.03] border border-blue-900/40 rounded-xl px-3 py-2 text-slate-100 placeholder:text-slate-400/40 focus:outline-none focus:border-blue-500/50 text-sm font-mono-c"
+        />
+        <span className="font-body text-[11px] text-slate-400/40">← mude para forçar exibição para todos</span>
+      </div>
+
+      {msg && <p className={`font-body text-xs ${msg.startsWith("✔︎") ? "text-emerald-400" : "text-red-400"}`}>{msg}</p>}
+
+      <button onClick={salvar} disabled={salvando} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-body font-medium transition-all flex items-center justify-center gap-2">
+        {salvando ? <><Loader2 size={14} className="animate-spin"/>Salvando...</> : "Publicar novidades"}
+      </button>
     </div>
   );
 }
@@ -520,7 +854,7 @@ function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome
   return (
     <div className="space-y-8 animate-fadeInUp">
       <div className="flex items-end justify-between flex-wrap gap-4">
-        <div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Histórico de Meses</p><h2 className="font-display text-3xl italic text-slate-100 mt-1">{nomeMes(mesSelecionado)}</h2></div>
+        <div className="flex items-center gap-3"><BotaoAjuda topico="historico"/><div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Histórico de Meses</p><h2 className="font-display text-3xl italic text-slate-100 mt-1">{nomeMes(mesSelecionado)}</h2></div></div>
         <button onClick={gerarPDFMes} className="px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-body text-sm flex items-center gap-2 transition-all"><FileDown size={14}/>Gerar PDF</button>
       </div>
       <div className="flex gap-2 flex-wrap">
@@ -573,7 +907,8 @@ function HomeAba({ quote, saldo, temReceitaNoMes, totalReceitasMes, totalDespesa
 
   return (
     <div className="space-y-10">
-      <section className="animate-fadeInUp delay-1 py-12 text-center">
+      <section className="animate-fadeInUp delay-1 py-12 text-center relative">
+        <div className="absolute top-0 right-0"><BotaoAjuda topico="home"/></div>
         <p className="font-display text-3xl italic leading-tight text-slate-100">"{quote.text}"</p>
         {quote.author && <p className="font-body text-sm text-slate-400/70 mt-3">— {quote.author}</p>}
       </section>
@@ -632,7 +967,7 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, totalDespes
   return (
     <div className="space-y-8 animate-fadeInUp">
       <div className="flex items-end justify-between">
-        <div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">{subAba==="pendentes"?"A pagar":"Pago"}</p><h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{formatBRL(subAba==="pendentes"?totalPendentesMes:totalDespesasPagasMes)}</h2></div>
+        <div className="flex items-center gap-3"><BotaoAjuda topico="despesas"/><div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">{subAba==="pendentes"?"A pagar":"Pago"}</p><h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{formatBRL(subAba==="pendentes"?totalPendentesMes:totalDespesasPagasMes)}</h2></div></div>
         <button onClick={onAdicionar} className="px-4 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-body text-sm flex items-center gap-2 transition-all"><Plus size={14}/>Nova</button>
       </div>
       <div className="flex gap-1 bg-white/[0.03] p-1 rounded-full w-fit border border-blue-900/30">
@@ -665,7 +1000,7 @@ function ParcelamentosAba({ parcelamentos, categorias, onAdicionar, onRemover, o
   return (
     <div className="space-y-8 animate-fadeInUp">
       <div className="flex items-end justify-between">
-        <div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Parcelamentos ativos</p><h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{ativos.length}</h2></div>
+        <div className="flex items-center gap-3"><BotaoAjuda topico="parcelamentos"/><div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Parcelamentos ativos</p><h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{ativos.length}</h2></div></div>
         <button onClick={onAdicionar} className="px-4 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-body text-sm flex items-center gap-2 transition-all"><Plus size={14}/>Novo</button>
       </div>
       <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl">
@@ -697,7 +1032,7 @@ function ReceitasAba({ receitas, totalReceitasMes, onAdicionar, onRemover }) {
   return (
     <div className="space-y-8 animate-fadeInUp">
       <div className="flex items-end justify-between">
-        <div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Receitas</p><h2 className="font-mono-c num-tabular text-4xl font-bold text-emerald-400">{formatBRL(totalReceitasMes)}</h2></div>
+        <div className="flex items-center gap-3"><BotaoAjuda topico="receitas"/><div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Receitas</p><h2 className="font-mono-c num-tabular text-4xl font-bold text-emerald-400">{formatBRL(totalReceitasMes)}</h2></div></div>
         <button onClick={onAdicionar} className="px-4 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-body text-sm flex items-center gap-2 transition-all"><Plus size={14}/>Nova</button>
       </div>
       <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl">
@@ -720,7 +1055,7 @@ function AssinaturasAba({ assinaturas, total, onAdicionar, onRemover }) {
   return (
     <div className="space-y-8 animate-fadeInUp">
       <div className="flex items-end justify-between">
-        <div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Total mensal</p><h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{formatBRL(total)}</h2></div>
+        <div className="flex items-center gap-3"><BotaoAjuda topico="assinaturas"/><div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Total mensal</p><h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{formatBRL(total)}</h2></div></div>
         <button onClick={onAdicionar} className="px-4 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-body text-sm flex items-center gap-2 transition-all"><Plus size={14}/>Nova</button>
       </div>
       <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl">

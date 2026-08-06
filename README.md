@@ -1,4 +1,4 @@
-# 💰 Finanças Filipe
+# Finanças Filipe
 
 App de controle financeiro pessoal com **receitas, despesas parceladas, categorias, assinaturas, gráficos e painel admin**.
 

@@ -432,10 +432,16 @@ function AppLogado({ session }) {
   // Assinaturas só entram no "Pago" se houver despesa gerada por elas e marcada como paga no mês
   // O card "Pago" mostra só despesas efetivamente pagas no mês atual
   const totalDespesasMes = totalDespesasPagasMes;
-  const temReceitaNoMes = totalReceitasMes > 0;
-  const saldo = temReceitaNoMes ? totalReceitasMes - totalDespesasMes : null;
-  const despesasPendentesMesAtual = useMemo(() => despesasPendentes.filter(d => { const dr = d.data_vencimento || d.data; return dr && dr.startsWith(mesAtual()); }), [despesasPendentes]);
-  const totalPendentesMes = useMemo(() => despesasPendentesMesAtual.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPendentesMesAtual]);
+  // SALDO ACUMULADO: soma receitas e despesas pagas de TODA a história, não só do mês atual.
+  // É assim que o saldo final de um mês (ex: R$160 sobrando) passa automaticamente para o mês seguinte,
+  // sem precisar adicionar manualmente.
+  const totalReceitasGeral = useMemo(() => receitas.reduce((s, r) => s + parseFloat(r.valor || 0), 0), [receitas]);
+  const totalDespesasPagasGeral = useMemo(() => despesasPagas.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPagas]);
+  const temReceitaNoMes = totalReceitasGeral > 0;
+  const saldo = temReceitaNoMes ? totalReceitasGeral - totalDespesasPagasGeral : null;
+  // "A PAGAR" GERAL: soma TODAS as despesas pendentes, de qualquer mês (não só do mês atual),
+  // para nada "desaparecer" quando o mês virar. Na aba Despesas dá pra filtrar por mês específico.
+  const totalPendentesMes = useMemo(() => despesasPendentes.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPendentes]);
   const despesasPorCategoria = useMemo(() => { const ag = {}; despesasPagasMesAtual.forEach(d => { ag[d.categoria_id] = (ag[d.categoria_id] || 0) + parseFloat(d.valor || 0); }); return categorias.map((c, i) => ({ id: c.id, nome: c.nome, valor: ag[c.id] || 0, cor: CORES_PIZZA[i % CORES_PIZZA.length] })).filter(c => c.valor > 0.01); }, [despesasPagasMesAtual, categorias]);
   const proximasAssinaturas = useMemo(() => { const hoje = new Date(); const diaH = hoje.getDate(); return [...assinaturas].map(a => { const dia = parseInt(a.dia_vencimento || 5); let dr = dia >= diaH ? dia - diaH : (new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate()) - diaH + dia; return { ...a, diasRestantes: dr }; }).sort((a, b) => a.diasRestantes - b.diasRestantes); }, [assinaturas]);
   const avisoDespesas = useMemo(() => { const hoje = new Date(); hoje.setHours(0,0,0,0); const limite = new Date(hoje); limite.setDate(limite.getDate() + 7); const vencidas = []; const vencendo = []; despesasPendentes.forEach(d => { if (!d.data_vencimento) return; const v = new Date(d.data_vencimento + "T00:00:00"); if (v < hoje) vencidas.push(d); else if (v <= limite) vencendo.push(d); }); return { vencidas, vencendo }; }, [despesasPendentes]);
@@ -540,7 +546,7 @@ function AppLogado({ session }) {
 
       <main className="relative z-10 px-6 md:px-12 py-8 max-w-6xl mx-auto">
         {aba === "home" && <HomeAba quote={quote} saldo={saldo} temReceitaNoMes={temReceitaNoMes} totalReceitasMes={totalReceitasMes} totalDespesasMes={totalDespesasMes} totalPendentesMes={totalPendentesMes} despesasPorCategoria={despesasPorCategoria} proximasAssinaturas={proximasAssinaturas} receitas={receitas} despesas={despesas} assinaturas={assinaturas} parcelamentos={parcelamentos} userNome={userNome}/>}
-        {aba === "despesas" && <DespesasAba despesasPendentes={despesasPendentes} despesasPagas={despesasPagas} categorias={categorias} totalDespesasPagasMes={totalDespesasPagasMes} totalPendentesMes={totalPendentesMes} onAdicionar={() => setModalDespesa(true)} onRemover={removerDespesa} onMarcarPaga={marcarComoPaga}/>}
+        {aba === "despesas" && <DespesasAba despesasPendentes={despesasPendentes} despesasPagas={despesasPagas} categorias={categorias} onAdicionar={() => setModalDespesa(true)} onRemover={removerDespesa} onMarcarPaga={marcarComoPaga}/>}
         {aba === "grafico" && <GraficoAba despesas={despesas} receitas={receitas} assinaturas={assinaturas}/>}
         {aba === "historico" && <HistoricoAba despesas={despesas} assinaturas={assinaturas} receitas={receitas} parcelamentos={parcelamentos} userNome={userNome}/>}
         {aba === "parcelamentos" && <ParcelamentosAba parcelamentos={parcelamentos} categorias={categorias} onAdicionar={() => setModalParcelamento(true)} onRemover={removerParcelamento} onMarcarPaga={marcarParcelaComoPaga}/>}
@@ -949,7 +955,7 @@ function CardResumo({ label, valor, icon: Icon, cor, delay }) {
 function CardSaldo({ saldo, temReceita, delay }) {
   return (
     <div className={`animate-fadeInUp delay-${delay} rounded-2xl p-6 border bg-[#0d1829] border-blue-500/30`}>
-      <div className="flex items-center justify-between mb-3"><span className="font-mono-c text-[10px] text-slate-400/50 uppercase">Saldo</span><Wallet size={16} className="text-blue-400"/></div>
+      <div className="flex items-center justify-between mb-3"><span className="font-mono-c text-[10px] text-slate-400/50 uppercase">Saldo acumulado</span><Wallet size={16} className="text-blue-400"/></div>
       {temReceita?<div className={`font-mono-c num-tabular text-2xl font-bold not-italic ${saldo>=0?"text-emerald-400":"text-red-400"}`}>{formatBRL(saldo)}</div>:<div className="font-mono-c text-xl font-bold text-slate-400/40">—</div>}
       {!temReceita&&<p className="font-body text-[10px] text-slate-400/40 mt-1">Cadastre receitas</p>}
     </div>
@@ -957,22 +963,62 @@ function CardSaldo({ saldo, temReceita, delay }) {
 }
 
 // ── DESPESAS ──────────────────────────────────────────────────────────────────────
-function DespesasAba({ despesasPendentes, despesasPagas, categorias, totalDespesasPagasMes, totalPendentesMes, onAdicionar, onRemover, onMarcarPaga }) {
+function DespesasAba({ despesasPendentes, despesasPagas, categorias, onAdicionar, onRemover, onMarcarPaga }) {
   const [subAba, setSubAba] = useState("pendentes");
+  // "todos" mostra despesas de qualquer mês (inclusive as que ficaram para trás).
+  // Selecionando um mês específico, filtra só aquele período.
+  const [mesFiltro, setMesFiltro] = useState("todos");
+
+  // Lista de meses que têm alguma despesa (pendente ou paga), do mais recente pro mais antigo
+  const mesesDisponiveis = useMemo(() => {
+    const s = new Set();
+    despesasPendentes.forEach(d => { const dr = d.data_vencimento || d.data; if (dr) s.add(dr.substring(0, 7)); });
+    despesasPagas.forEach(d => { if (d.data_pagamento) s.add(d.data_pagamento.substring(0, 7)); });
+    return [...s].sort((a, b) => b.localeCompare(a));
+  }, [despesasPendentes, despesasPagas]);
+
+  const listaBase = subAba === "pendentes" ? despesasPendentes : despesasPagas;
+  const lista = useMemo(() => {
+    if (mesFiltro === "todos") return listaBase;
+    return listaBase.filter(d => {
+      const ref = subAba === "pendentes" ? (d.data_vencimento || d.data) : d.data_pagamento;
+      return ref && ref.startsWith(mesFiltro);
+    });
+  }, [listaBase, mesFiltro, subAba]);
+
+  const total = useMemo(() => lista.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [lista]);
+
   return (
     <div className="space-y-8 animate-fadeInUp">
-      <div className="flex items-end justify-between">
-        <div className="flex items-center gap-3"><BotaoAjuda topico="despesas"/><div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">{subAba==="pendentes"?"A pagar":"Pago"}</p><h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{formatBRL(subAba==="pendentes"?totalPendentesMes:totalDespesasPagasMes)}</h2></div></div>
+      <div className="flex items-end justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <BotaoAjuda topico="despesas"/>
+          <div>
+            <p className="font-mono-c text-[10px] text-slate-400/60 uppercase">
+              {subAba === "pendentes" ? "A pagar" : "Pago"}{mesFiltro !== "todos" ? ` · ${nomeMes(mesFiltro)}` : " · todos os meses"}
+            </p>
+            <h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{formatBRL(total)}</h2>
+          </div>
+        </div>
         <button onClick={onAdicionar} className="px-4 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-body text-sm flex items-center gap-2 transition-all"><Plus size={14}/>Nova</button>
       </div>
+
       <div className="flex gap-1 bg-white/[0.03] p-1 rounded-full w-fit border border-blue-900/30">
         <button onClick={()=>setSubAba("pendentes")} className={`px-4 py-1.5 rounded-full font-body text-xs transition-all ${subAba==="pendentes"?"bg-blue-600 text-white":"text-slate-400/70"}`}>Pendentes ({despesasPendentes.length})</button>
         <button onClick={()=>setSubAba("pagas")} className={`px-4 py-1.5 rounded-full font-body text-xs transition-all ${subAba==="pagas"?"bg-blue-600 text-white":"text-slate-400/70"}`}>Histórico ({despesasPagas.length})</button>
       </div>
+
+      <div className="flex gap-2 flex-wrap">
+        <button onClick={()=>setMesFiltro("todos")} className={`px-4 py-2 rounded-full font-body text-sm transition-all ${mesFiltro==="todos"?"bg-blue-600 text-white":"bg-white/5 text-slate-300 hover:bg-white/10 border border-blue-900/30"}`}>Todos os meses</button>
+        {mesesDisponiveis.map(m => (
+          <button key={m} onClick={()=>setMesFiltro(m)} className={`px-4 py-2 rounded-full font-body text-sm transition-all ${mesFiltro===m?"bg-blue-600 text-white":"bg-white/5 text-slate-300 hover:bg-white/10 border border-blue-900/30"}`}>{nomeMes(m)}</button>
+        ))}
+      </div>
+
       <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl">
-        {(subAba==="pendentes"?despesasPendentes:despesasPagas).length===0?<div className="p-12 text-center"><p className="font-body text-slate-400/40">{subAba==="pendentes"?"Sem despesas pendentes ✨":"Sem histórico"}</p></div>:(
+        {lista.length===0?<div className="p-12 text-center"><p className="font-body text-slate-400/40">{subAba==="pendentes"?"Sem despesas pendentes ✨":"Sem histórico"}</p></div>:(
           <div className="divide-y divide-blue-900/20">
-            {(subAba==="pendentes"?despesasPendentes:despesasPagas).sort((a,b)=>(a.data_vencimento||a.data||"").localeCompare(b.data_vencimento||b.data||"")).map(d=>(
+            {[...lista].sort((a,b)=>(a.data_vencimento||a.data||"").localeCompare(b.data_vencimento||b.data||"")).map(d=>(
               <div key={d.id} className="flex items-center gap-3 p-4 hover:bg-white/[0.02] group">
                 <div className="flex-1"><div className="font-body text-slate-200">{d.descricao}</div><div className="font-mono-c text-[10px] text-slate-400/50">{formatarDataBR(d.data_vencimento||d.data)}</div></div>
                 <div className="font-mono-c num-tabular text-slate-300">{formatBRL(d.valor)}</div>

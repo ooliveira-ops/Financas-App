@@ -1,15 +1,20 @@
-import React, { useState, useEffect, useMemo } from "react";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
-} from "recharts";
+import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import {
   Plus, Trash2, Wallet, X, TrendingUp, Repeat, Home, PieChart as PieIcon,
-  Check, GraduationCap, Utensils, User, Car, ShoppingBag, Heart, Plane,
-  Coffee, Tag, LogOut, Loader2, Clock, History, CheckCircle2, Bell, Zap,
-  FileDown, Shield, BarChart2, RefreshCw, HelpCircle,
+  Check, LogOut, Loader2, Clock, History, CheckCircle2, Bell, Zap,
+  FileDown, Shield, BarChart2, RefreshCw, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "./supabase";
 import Auth from "./Auth";
+import { BotaoAjuda } from "./Ajuda";
+import { ModalBase, ModalConfirmar, inputCls, btnPrimary } from "./ModalBase";
+import {
+  formatBRL, hojeISO, mesAtual, somarMeses, nomeMes,
+  formatarDataBR, formatarDataHora, dividirEmParcelas, mesclarPorId,
+} from "./utils";
+
+// Carregada sob demanda para manter o recharts fora do bundle inicial.
+const GraficoAba = lazy(() => import("./GraficoAba"));
 
 const QUOTES = [
   { text: "Tudo posso naquele que me fortalece.", author: "Filipenses 4:13" },
@@ -38,8 +43,6 @@ const QUOTES = [
   { text: "Acredite que você pode, e você já está no meio do caminho.", author: "Theodore Roosevelt" },
 ];
 
-const ICONS_MAP = { GraduationCap, Utensils, User, Home, Car, ShoppingBag, Heart, Plane, Coffee, Tag };
-
 // Novidades são gerenciadas pelo painel admin — sem editar código!
 
 const CATEGORIAS_PADRAO = [
@@ -49,134 +52,6 @@ const CATEGORIAS_PADRAO = [
   { nome: "Moradia", cor: "#38bdf8", icone: "Home" },
   { nome: "Transporte", cor: "#6ee7b7", icone: "Car" },
 ];
-
-const CORES_PIZZA = ["#60a5fa", "#34d399", "#a78bfa", "#38bdf8", "#6ee7b7", "#93c5fd", "#4ade80", "#818cf8"];
-
-// Conteúdo do botão "Dúvidas" de cada seção — edite os textos aqui sempre que quiser mudar as explicações
-const AJUDA_CONTEUDO = {
-  home: {
-    titulo: "Como funciona a Home",
-    explicacao: "A Home mostra um resumo geral do seu mês: quanto entrou (receitas), quanto já foi pago, quanto ainda falta pagar e o saldo. Também mostra suas próximas assinaturas e permite gerar um relatório em PDF do mês.",
-    passos: [
-      "Cadastre suas receitas do mês na aba Receitas para o saldo aparecer aqui.",
-      "Conforme você marca despesas como pagas, os cards 'Pago' e 'A pagar' vão se atualizando sozinhos.",
-      "Clique em 'Gerar Relatório do Mês' quando quiser baixar um PDF com tudo o que aconteceu no mês.",
-    ],
-  },
-  despesas: {
-    titulo: "Como funciona Despesas",
-    explicacao: "Aqui ficam seus gastos do mês, separados em 'Pendentes' (ainda não pagos) e 'Histórico' (já pagos). Uma despesa também pode ser parcelada direto por aqui.",
-    passos: [
-      "Clique em 'Nova' e preencha a descrição (ex: Almoço), o valor e a data de vencimento.",
-      "Se quiser dividir em várias vezes, mude o campo 'Parcelas' — o valor de cada parcela é calculado automaticamente.",
-      "Quando pagar uma despesa, clique no ícone de check (✓) para marcá-la como paga e ela vai para o Histórico.",
-    ],
-  },
-  receitas: {
-    titulo: "Como funciona Receitas",
-    explicacao: "É onde você registra o dinheiro que entra no mês, como salário, freelas ou qualquer outra fonte de renda. É a partir daqui que o app calcula seu saldo.",
-    passos: [
-      "Clique em 'Nova' e informe de onde veio o dinheiro (ex: Salário) e o valor.",
-      "A receita é sempre associada ao mês atual automaticamente.",
-      "Repita sempre que receber um novo valor, mesmo que seja mais de uma vez no mês.",
-    ],
-  },
-  assinaturas: {
-    titulo: "Como funcionam as Assinaturas",
-    explicacao: "Assinaturas são gastos fixos que se repetem todo mês, como Netflix ou academia. O app gera automaticamente uma despesa desse valor todo mês, no dia de vencimento que você escolher.",
-    passos: [
-      "Clique em 'Nova' e informe o nome (ex: Netflix), o valor e o dia do mês em que ela vence.",
-      "Assim que o mês virar, o app cria sozinho a despesa correspondente na aba Despesas.",
-      "Se cancelar o serviço, é só remover a assinatura daqui que ela para de gerar novas despesas.",
-    ],
-  },
-  parcelamentos: {
-    titulo: "Como funcionam os Parcelamentos",
-    explicacao: "Parcelamentos servem para compras grandes divididas em várias vezes, como um celular em 10x. Diferente da despesa parcelada simples, aqui você acompanha o progresso de pagamento parcela por parcela.",
-    passos: [
-      "Clique em 'Novo' e informe a descrição (ex: Monitor), o valor total e em quantas parcelas foi dividido.",
-      "A barra de progresso mostra quantas parcelas já foram pagas em relação ao total.",
-      "Clique em 'Marcar próxima como paga' sempre que uma parcela for quitada.",
-    ],
-  },
-  grafico: {
-    titulo: "Como funciona o Gráfico",
-    explicacao: "Essa aba mostra a evolução das suas finanças nos últimos 6 meses, comparando receitas, despesas pagas, pendentes e assinaturas mês a mês.",
-    passos: [
-      "Passe o mouse sobre os gráficos para ver os valores exatos de cada mês.",
-      "Use o primeiro gráfico para comparar quanto entrou (receitas) com quanto saiu (pagas).",
-      "Use o segundo gráfico para ver o quanto ainda está pendente e o peso das assinaturas fixas.",
-    ],
-  },
-  historico: {
-    titulo: "Como funciona o Histórico",
-    explicacao: "O Histórico reúne, em ordem, tudo que já aconteceu nas suas finanças: despesas pagas, receitas recebidas e parcelas quitadas — uma espécie de linha do tempo.",
-    passos: [
-      "Use essa aba quando quiser conferir tudo que já foi movimentado, sem precisar entrar em cada seção separada.",
-      "É útil para revisar o mês antes de gerar o relatório em PDF na Home.",
-    ],
-  },
-};
-
-function BotaoAjuda({ topico }) {
-  const [aberto, setAberto] = useState(false);
-  const conteudo = AJUDA_CONTEUDO[topico];
-  if (!conteudo) return null;
-  return (
-    <>
-      <button
-        onClick={() => setAberto(true)}
-        title="Dúvidas"
-        className="w-8 h-8 shrink-0 rounded-full bg-white/[0.05] border border-blue-900/30 text-slate-400/70 hover:text-blue-400 hover:border-blue-500/40 transition flex items-center justify-center"
-      >
-        <HelpCircle size={15} />
-      </button>
-      {aberto && (
-        <ModalBase titulo={conteudo.titulo} onFechar={() => setAberto(false)}>
-          <p className="font-body text-sm text-slate-300 leading-relaxed">{conteudo.explicacao}</p>
-          <div className="bg-white/[0.03] border border-blue-900/20 rounded-xl p-4 space-y-3">
-            <p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Passo a passo</p>
-            {conteudo.passos.map((p, i) => (
-              <div key={i} className="flex gap-3 items-start">
-                <span className="font-mono-c text-xs text-blue-400 font-bold mt-0.5">{i + 1}</span>
-                <p className="font-body text-sm text-slate-300">{p}</p>
-              </div>
-            ))}
-          </div>
-        </ModalBase>
-      )}
-    </>
-  );
-}
-
-const formatBRL = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
-const hojeISO = () => new Date().toISOString().split("T")[0];
-const mesAtual = () => new Date().toISOString().substring(0, 7);
-const nomeMesAbrev = (mesISO) => {
-  const [ano, mes] = mesISO.split("-");
-  const m = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  return `${m[parseInt(mes)-1]}/${ano.slice(2)}`;
-};
-const nomeMes = (mesISO) => {
-  const [ano, mes] = mesISO.split("-");
-  const m = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-  return `${m[parseInt(mes)-1]} ${ano}`;
-};
-const formatarDataBR = (data) => {
-  if (!data) return "—";
-  const [a, m, d] = data.split("-");
-  return `${d}/${m}/${a}`;
-};
-const formatarDataHora = (iso) => {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" });
-};
-
-const mesclarPorId = (listaLocal, doBanco) => {
-  const mapa = new Map(listaLocal.map(item => [item.id, item]));
-  (doBanco || []).forEach(item => mapa.set(item.id, item));
-  return Array.from(mapa.values());
-};
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -209,6 +84,9 @@ function AppLogado({ session }) {
   const [modalParcelamento, setModalParcelamento] = useState(false);
   const [modalCategoria, setModalCategoria] = useState(false);
   const [avisoFechado, setAvisoFechado] = useState(false);
+  const [erroCarregar, setErroCarregar] = useState(null);
+  const [notificacao, setNotificacao] = useState(null);
+  const [confirmacao, setConfirmacao] = useState(null);
   const carregandoRef = React.useRef(false);
   const assinaturasGeradasMesRef = React.useRef("");
   const [mostrarBanner, setMostrarBanner] = useState(false);
@@ -253,6 +131,23 @@ function AppLogado({ session }) {
     return [];
   };
 
+  // O PostgREST corta a resposta no "max rows" do projeto (1000 por padrão) sem devolver
+  // erro, e o saldo acumulado depende do histórico completo — daí a paginação.
+  // PAGINA fica abaixo do limite para que "página curta = última página" seja válido.
+  const PAGINA = 500;
+  const buscarTodos = async (tabela) => {
+    let todos = [];
+    for (let inicio = 0; ; inicio += PAGINA) {
+      const { data, error } = await supabase
+        .from(tabela).select("*").eq("user_id", userId)
+        .order("id", { ascending: true })
+        .range(inicio, inicio + PAGINA - 1);
+      if (error) throw error;
+      todos = todos.concat(data || []);
+      if (!data || data.length < PAGINA) return todos;
+    }
+  };
+
   const carregarTudo = async () => {
     // Mutex: impede execução simultânea
     if (carregandoRef.current) return;
@@ -260,137 +155,175 @@ function AppLogado({ session }) {
 
     try {
       const [r, d, a, p, c, prof] = await Promise.all([
-        supabase.from("receitas").select("*").eq("user_id", userId),
-        supabase.from("despesas").select("*").eq("user_id", userId),
-        supabase.from("assinaturas").select("*").eq("user_id", userId),
-        supabase.from("parcelamentos").select("*").eq("user_id", userId),
-        supabase.from("categorias").select("*").eq("user_id", userId),
-        supabase.from("profiles").select("is_admin").eq("id", userId).single(),
+        buscarTodos("receitas"),
+        buscarTodos("despesas"),
+        buscarTodos("assinaturas"),
+        buscarTodos("parcelamentos"),
+        buscarTodos("categorias"),
+        supabase.from("profiles").select("is_admin").eq("id", userId).maybeSingle(),
       ]);
-      setReceitas(r.data || []);
-      setAssinaturas(a.data || []);
-      setParcelamentos(p.data || []);
+      setReceitas(r);
+      setAssinaturas(a);
+      setParcelamentos(p);
       setIsAdmin(prof.data?.is_admin || false);
-      await supabase.from("profiles").update({ ultimo_login: new Date().toISOString() }).eq("id", userId);
+      // Sem await: nada depende desta escrita, e aguardá-la custa um round-trip
+      // antes do primeiro render.
+      supabase.from("profiles").update({ ultimo_login: new Date().toISOString() }).eq("id", userId);
 
       // Só gera despesas de assinaturas se ainda não gerou neste mês
       const mes = mesAtual();
-      let todasDespesas = d.data || [];
+      let todasDespesas = d;
       if (assinaturasGeradasMesRef.current !== mes) {
-        const novasGeradas = await gerarDespesasAssinaturas(a.data || [], d.data || []);
-        if (novasGeradas.length > 0) {
-          todasDespesas = [...todasDespesas, ...novasGeradas];
-          assinaturasGeradasMesRef.current = mes; // marca que já gerou este mês
-        } else {
-          assinaturasGeradasMesRef.current = mes; // já existiam todas
-        }
+        const novasGeradas = await gerarDespesasAssinaturas(a, d);
+        if (novasGeradas.length > 0) todasDespesas = [...todasDespesas, ...novasGeradas];
+        assinaturasGeradasMesRef.current = mes;
       }
       setDespesas(todasDespesas);
 
-      if (!c.data || c.data.length === 0) {
+      if (c.length === 0) {
         const novas = CATEGORIAS_PADRAO.map(cat => ({ ...cat, user_id: userId, padrao: true }));
         const { data: criadas } = await supabase.from("categorias").insert(novas).select();
         setCategorias(criadas || []);
-      } else { setCategorias(c.data); }
+      } else { setCategorias(c); }
     } finally {
       carregandoRef.current = false;
     }
   };
 
-  useEffect(() => {
-    const carregar = async () => {
-      setCarregandoDados(true);
+  const carregar = async () => {
+    setCarregandoDados(true);
+    setErroCarregar(null);
+    try {
       await carregarTudo();
-      setCarregandoDados(false);
-      setQuote(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
-    };
-    carregar();
-  }, [userId]);
+    } catch (e) {
+      setErroCarregar(e?.message || "Não foi possível carregar seus dados.");
+    }
+    setCarregandoDados(false);
+    setQuote(QUOTES[Math.floor(Math.random() * QUOTES.length)]);
+  };
+
+  useEffect(() => { carregar(); }, [userId]);
+
+  const notificar = (texto, tipo = "erro") => setNotificacao({ texto, tipo });
+  useEffect(() => {
+    if (!notificacao) return;
+    const t = setTimeout(() => setNotificacao(null), 5000);
+    return () => clearTimeout(t);
+  }, [notificacao]);
+
+  const pedirConfirmacao = (mensagem, acao) => setConfirmacao({ mensagem, acao });
 
   const adicionarReceita = async (n) => {
     const { data, error } = await supabase.from("receitas").insert({ ...n, user_id: userId }).select().single();
     if (!error && data) setReceitas(prev => [...prev, data]);
   };
-  const removerReceita = async (id) => {
+  const removerReceita = (id) => pedirConfirmacao("Apagar esta receita? Não dá para desfazer.", async () => {
     const { error } = await supabase.from("receitas").delete().eq("id", id);
-    if (!error) setReceitas(prev => prev.filter(r => r.id !== id));
-  };
+    if (error) return notificar("Não foi possível apagar: " + error.message);
+    setReceitas(prev => prev.filter(r => r.id !== id));
+  });
 
   const adicionarDespesa = async (n) => {
-    const { parcelas, dataVencimento, ...resto } = n;
-    const lista = [];
-    const dataBase = new Date(dataVencimento + "T12:00:00");
-    for (let i = 0; i < parcelas; i++) {
-      const dt = new Date(dataBase); dt.setMonth(dt.getMonth() + i);
-      const dataStr = dt.toISOString().split("T")[0];
-      lista.push({ ...resto, user_id: userId, data: dataStr, data_vencimento: dataStr, status: "pendente", parcela_atual: parcelas > 1 ? i + 1 : null, parcelas_total: parcelas > 1 ? parcelas : null });
-    }
+    const { parcelas, dataVencimento, valor, ...resto } = n;
+    // `valor` é o total da compra; a divisão em centavos exatos é feita aqui.
+    const lista = dividirEmParcelas(valor, parcelas).map((valorParcela, i) => {
+      const dataStr = somarMeses(dataVencimento, i);
+      return {
+        ...resto, valor: valorParcela, user_id: userId, data: dataStr, data_vencimento: dataStr,
+        status: "pendente",
+        parcela_atual: parcelas > 1 ? i + 1 : null,
+        parcelas_total: parcelas > 1 ? parcelas : null,
+      };
+    });
     const { data, error } = await supabase.from("despesas").insert(lista).select();
-    if (!error && data) setDespesas(prev => [...prev, ...data]);
+    if (error) return notificar("Não foi possível salvar a despesa: " + error.message);
+    if (data) setDespesas(prev => [...prev, ...data]);
   };
-  const removerDespesa = async (id) => {
+  const removerDespesa = (id) => pedirConfirmacao("Apagar esta despesa? Não dá para desfazer.", async () => {
     const { error } = await supabase.from("despesas").delete().eq("id", id);
-    if (!error) setDespesas(prev => prev.filter(d => d.id !== id));
-  };
+    if (error) return notificar("Não foi possível apagar: " + error.message);
+    setDespesas(prev => prev.filter(d => d.id !== id));
+  });
   const marcarComoPaga = async (id) => {
     const { data, error } = await supabase.from("despesas").update({ status: "paga", data_pagamento: hojeISO() }).eq("id", id).select().single();
-    if (!error && data) setDespesas(prev => prev.map(d => d.id === id ? data : d));
+    if (error) return notificar("Não foi possível marcar como paga: " + error.message);
+    if (data) setDespesas(prev => prev.map(d => d.id === id ? data : d));
   };
 
   const adicionarAssinatura = async (n) => {
     const { data, error } = await supabase.from("assinaturas").insert({ ...n, user_id: userId }).select().single();
-    if (!error && data) {
-      setAssinaturas(prev => [...prev, data]);
-      setTimeout(async () => {
-        const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId);
-        if (nd) setDespesas(prev => mesclarPorId(prev, nd));
-      }, 1000);
-    }
+    if (error || !data) return notificar("Não foi possível salvar a assinatura: " + (error?.message || ""));
+    setAssinaturas(prev => [...prev, data]);
+    // A geração de despesas de assinatura é do cliente, não do banco: a do mês
+    // corrente é criada aqui mesmo.
+    const geradas = await gerarDespesasAssinaturas([data], despesas);
+    if (geradas.length > 0) setDespesas(prev => mesclarPorId(prev, geradas));
   };
-  const removerAssinatura = async (id) => {
+  const removerAssinatura = (id) => pedirConfirmacao("Apagar esta assinatura? As despesas já geradas continuam na lista.", async () => {
     const { error } = await supabase.from("assinaturas").delete().eq("id", id);
-    if (!error) setAssinaturas(prev => prev.filter(a => a.id !== id));
+    if (error) return notificar("Não foi possível apagar: " + error.message);
+    setAssinaturas(prev => prev.filter(a => a.id !== id));
+  });
+
+  const recarregarDespesas = async () => {
+    try { setDespesas(await buscarTodos("despesas")); } catch { /* a operação principal já foi gravada */ }
   };
 
+  // O dinheiro de um parcelamento entra no saldo pelas despesas, uma por parcela —
+  // `parcelamentos` guarda só o acompanhamento. Por isso as N despesas são criadas
+  // aqui, pelo mesmo caminho de uma despesa parcelada comum.
   const adicionarParcelamento = async (n) => {
-    if (!n.descricao || !n.valor_total || !n.parcelas_total) { alert("Preencha todos os campos"); return; }
-    const { data, error } = await supabase.from("parcelamentos").insert({ descricao: n.descricao, valor_total: parseFloat(n.valor_total), parcelas_total: parseInt(n.parcelas_total), parcelas_pagas: 0, valor_pago: 0, user_id: userId, proxima_parcela_data: n.dataInicio, categoria_id: null, status: "ativo" }).select().single();
-    if (error) { alert("Erro: " + error.message); return; }
-    if (data) {
-      setParcelamentos(prev => [...prev, data]);
-      setTimeout(async () => {
-        const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId);
-        if (nd) setDespesas(prev => mesclarPorId(prev, nd));
-      }, 1500);
-    }
+    if (!n.descricao || !n.valor_total || !n.parcelas_total) return notificar("Preencha todos os campos");
+    const parcelasTotal = parseInt(n.parcelas_total);
+    const { data, error } = await supabase.from("parcelamentos").insert({ descricao: n.descricao, valor_total: parseFloat(n.valor_total), parcelas_total: parcelasTotal, parcelas_pagas: 0, valor_pago: 0, user_id: userId, proxima_parcela_data: n.dataInicio, categoria_id: null, status: "ativo" }).select().single();
+    if (error) return notificar("Não foi possível salvar o parcelamento: " + error.message);
+    if (data) setParcelamentos(prev => [...prev, data]);
+    await adicionarDespesa({
+      descricao: n.descricao,
+      valor: parseFloat(n.valor_total),
+      categoria_id: null,
+      dataVencimento: n.dataInicio,
+      parcelas: parcelasTotal,
+    });
+    await recarregarDespesas();
   };
   const marcarParcelaComoPaga = async (id) => {
     const parc = parcelamentos.find(p => p.id === id);
-    if (!parc || parc.parcelas_pagas >= parc.parcelas_total) { alert("Todas as parcelas já foram pagas!"); return; }
+    if (!parc || parc.parcelas_pagas >= parc.parcelas_total) return notificar("Todas as parcelas já foram pagas!", "info");
     const novasParcelas = parc.parcelas_pagas + 1;
-    const novoValorPago = (parc.valor_pago || 0) + (parc.valor_total / parc.parcelas_total);
-    const { data, error } = await supabase.from("parcelamentos").update({ parcelas_pagas: novasParcelas, valor_pago: novoValorPago, status: novasParcelas >= parc.parcelas_total ? "finalizado" : "ativo" }).eq("id", id).select().single();
-    if (error) { alert("Erro: " + error.message); return; }
-    if (data) {
-      setParcelamentos(prev => prev.map(p => p.id === id ? data : p));
-      setTimeout(async () => {
-        const { data: nd } = await supabase.from("despesas").select("*").eq("user_id", userId);
-        if (nd) setDespesas(prev => mesclarPorId(prev, nd));
-      }, 500);
-    }
+    const ehUltima = novasParcelas >= parc.parcelas_total;
+    // A última parcela fecha no total exato, para não sobrar nem faltar centavo.
+    const novoValorPago = ehUltima
+      ? parseFloat(parc.valor_total)
+      : Math.round(((parc.valor_pago || 0) + parc.valor_total / parc.parcelas_total) * 100) / 100;
+    const { data, error } = await supabase.from("parcelamentos").update({
+      parcelas_pagas: novasParcelas,
+      valor_pago: novoValorPago,
+      status: ehUltima ? "finalizado" : "ativo",
+      proxima_parcela_data: ehUltima || !parc.proxima_parcela_data
+        ? parc.proxima_parcela_data
+        : somarMeses(parc.proxima_parcela_data, 1),
+    }).eq("id", id).select().single();
+    if (error) return notificar("Não foi possível atualizar o parcelamento: " + error.message);
+    if (data) setParcelamentos(prev => prev.map(p => p.id === id ? data : p));
   };
-  const removerParcelamento = async (id) => {
+  const removerParcelamento = (id) => pedirConfirmacao("Apagar este parcelamento? O histórico de parcelas pagas será perdido.", async () => {
     const { error } = await supabase.from("parcelamentos").delete().eq("id", id);
-    if (!error) setParcelamentos(prev => prev.filter(p => p.id !== id));
-  };
+    if (error) return notificar("Não foi possível apagar: " + error.message);
+    setParcelamentos(prev => prev.filter(p => p.id !== id));
+  });
   const adicionarCategoria = async (n) => {
     const { data, error } = await supabase.from("categorias").insert({ ...n, user_id: userId, padrao: false }).select().single();
-    if (!error && data) setCategorias(prev => [...prev, data]);
+    if (error) return notificar("Não foi possível salvar a categoria: " + error.message);
+    if (data) setCategorias(prev => [...prev, data]);
   };
-  const removerCategoria = async (id) => {
-    if (despesas.some(d => d.categoria_id === id)) { alert("Não é possível remover: existem despesas nesta categoria."); return; }
-    const { error } = await supabase.from("categorias").delete().eq("id", id);
-    if (!error) setCategorias(prev => prev.filter(c => c.id !== id));
+  const removerCategoria = (id) => {
+    if (despesas.some(d => d.categoria_id === id)) return notificar("Não é possível remover: existem despesas nesta categoria.");
+    pedirConfirmacao("Apagar esta categoria?", async () => {
+      const { error } = await supabase.from("categorias").delete().eq("id", id);
+      if (error) return notificar("Não foi possível apagar: " + error.message);
+      setCategorias(prev => prev.filter(c => c.id !== id));
+    });
   };
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
@@ -403,7 +336,7 @@ function AppLogado({ session }) {
         .eq("ativo", true)
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       if (!data) return;
       const visto = localStorage.getItem("banner_versao_vista");
       if (visto !== data.versao) {
@@ -437,12 +370,13 @@ function AppLogado({ session }) {
   // sem precisar adicionar manualmente.
   const totalReceitasGeral = useMemo(() => receitas.reduce((s, r) => s + parseFloat(r.valor || 0), 0), [receitas]);
   const totalDespesasPagasGeral = useMemo(() => despesasPagas.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPagas]);
+  // Parcelamentos entram no saldo pelas despesas que o banco gera para cada parcela,
+  // não por `valor_pago` — somar os dois descontaria o mesmo dinheiro duas vezes.
   const temReceitaNoMes = totalReceitasGeral > 0;
   const saldo = temReceitaNoMes ? totalReceitasGeral - totalDespesasPagasGeral : null;
   // "A PAGAR" GERAL: soma TODAS as despesas pendentes, de qualquer mês (não só do mês atual),
   // para nada "desaparecer" quando o mês virar. Na aba Despesas dá pra filtrar por mês específico.
-  const totalPendentesMes = useMemo(() => despesasPendentes.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPendentes]);
-  const despesasPorCategoria = useMemo(() => { const ag = {}; despesasPagasMesAtual.forEach(d => { ag[d.categoria_id] = (ag[d.categoria_id] || 0) + parseFloat(d.valor || 0); }); return categorias.map((c, i) => ({ id: c.id, nome: c.nome, valor: ag[c.id] || 0, cor: CORES_PIZZA[i % CORES_PIZZA.length] })).filter(c => c.valor > 0.01); }, [despesasPagasMesAtual, categorias]);
+  const totalPendentesGeral = useMemo(() => despesasPendentes.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPendentes]);
   const proximasAssinaturas = useMemo(() => { const hoje = new Date(); const diaH = hoje.getDate(); return [...assinaturas].map(a => { const dia = parseInt(a.dia_vencimento || 5); let dr = dia >= diaH ? dia - diaH : (new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate()) - diaH + dia; return { ...a, diasRestantes: dr }; }).sort((a, b) => a.diasRestantes - b.diasRestantes); }, [assinaturas]);
   const avisoDespesas = useMemo(() => { const hoje = new Date(); hoje.setHours(0,0,0,0); const limite = new Date(hoje); limite.setDate(limite.getDate() + 7); const vencidas = []; const vencendo = []; despesasPendentes.forEach(d => { if (!d.data_vencimento) return; const v = new Date(d.data_vencimento + "T00:00:00"); if (v < hoje) vencidas.push(d); else if (v <= limite) vencendo.push(d); }); return { vencidas, vencendo }; }, [despesasPendentes]);
 
@@ -514,6 +448,31 @@ function AppLogado({ session }) {
         </div>
       )}
 
+      {erroCarregar && (
+        <div className="relative z-40 mx-4 mt-4 bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3 flex-wrap">
+          <AlertTriangle size={16} className="text-red-400 shrink-0"/>
+          <div className="flex-1 min-w-[200px]">
+            <p className="font-body text-sm text-red-300">Não conseguimos carregar seus dados. Eles continuam salvos — os valores abaixo podem estar incompletos.</p>
+            <p className="font-mono-c text-[10px] text-slate-400/40 mt-1 break-words">{erroCarregar}</p>
+          </div>
+          <button onClick={carregar} className="px-4 py-2 rounded-full bg-red-500/15 border border-red-500/30 text-red-200 font-body text-xs hover:bg-red-500/25 transition">Tentar novamente</button>
+        </div>
+      )}
+
+      {notificacao && (
+        <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-fadeInUp max-w-md px-4 py-3 rounded-xl border font-body text-sm ${notificacao.tipo === "info" ? "bg-[#0d1829] border-blue-500/30 text-blue-200" : "bg-[#0d1829] border-red-500/30 text-red-200"}`}>
+          {notificacao.texto}
+        </div>
+      )}
+
+      {confirmacao && (
+        <ModalConfirmar
+          mensagem={confirmacao.mensagem}
+          onCancelar={() => setConfirmacao(null)}
+          onConfirmar={async () => { const acao = confirmacao.acao; setConfirmacao(null); await acao(); }}
+        />
+      )}
+
       {!avisoFechado && (avisoDespesas.vencidas.length > 0 || avisoDespesas.vencendo.length > 0) && (
         <div className="fixed top-4 right-4 z-30 animate-fadeInUp max-w-sm bg-[#0d1829]/95 border border-blue-500/20 rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
@@ -545,14 +504,18 @@ function AppLogado({ session }) {
       </nav>
 
       <main className="relative z-10 px-6 md:px-12 py-8 max-w-6xl mx-auto">
-        {aba === "home" && <HomeAba quote={quote} saldo={saldo} temReceitaNoMes={temReceitaNoMes} totalReceitasMes={totalReceitasMes} totalDespesasMes={totalDespesasMes} totalPendentesMes={totalPendentesMes} despesasPorCategoria={despesasPorCategoria} proximasAssinaturas={proximasAssinaturas} receitas={receitas} despesas={despesas} assinaturas={assinaturas} parcelamentos={parcelamentos} userNome={userNome}/>}
+        {aba === "home" && <HomeAba quote={quote} saldo={saldo} temReceitaNoMes={temReceitaNoMes} totalReceitasMes={totalReceitasMes} totalDespesasMes={totalDespesasMes} totalPendentesGeral={totalPendentesGeral} proximasAssinaturas={proximasAssinaturas} receitas={receitas} despesas={despesas} assinaturas={assinaturas} parcelamentos={parcelamentos} userNome={userNome} onAviso={notificar}/>}
         {aba === "despesas" && <DespesasAba despesasPendentes={despesasPendentes} despesasPagas={despesasPagas} categorias={categorias} onAdicionar={() => setModalDespesa(true)} onRemover={removerDespesa} onMarcarPaga={marcarComoPaga}/>}
-        {aba === "grafico" && <GraficoAba despesas={despesas} receitas={receitas} assinaturas={assinaturas}/>}
-        {aba === "historico" && <HistoricoAba despesas={despesas} assinaturas={assinaturas} receitas={receitas} parcelamentos={parcelamentos} userNome={userNome}/>}
+        {aba === "grafico" && (
+          <Suspense fallback={<div className="py-24 flex justify-center"><Loader2 className="text-blue-400/60 animate-spin" size={24}/></div>}>
+            <GraficoAba despesas={despesas} receitas={receitas} assinaturas={assinaturas}/>
+          </Suspense>
+        )}
+        {aba === "historico" && <HistoricoAba despesas={despesas} assinaturas={assinaturas} receitas={receitas} parcelamentos={parcelamentos} userNome={userNome} onAviso={notificar}/>}
         {aba === "parcelamentos" && <ParcelamentosAba parcelamentos={parcelamentos} categorias={categorias} onAdicionar={() => setModalParcelamento(true)} onRemover={removerParcelamento} onMarcarPaga={marcarParcelaComoPaga}/>}
         {aba === "receitas" && <ReceitasAba receitas={receitas} totalReceitasMes={totalReceitasMes} onAdicionar={() => setModalReceita(true)} onRemover={removerReceita}/>}
         {aba === "assinaturas" && <AssinaturasAba assinaturas={proximasAssinaturas} total={totalAssinaturasMes} onAdicionar={() => setModalAssinatura(true)} onRemover={removerAssinatura}/>}
-        {aba === "usuarios" && isAdmin && <UsuariosAba/>}
+        {aba === "usuarios" && isAdmin && <UsuariosAba onAviso={notificar}/>}
       </main>
 
       {modalReceita && <ModalReceita onFechar={() => setModalReceita(false)} onSalvar={async r => { await adicionarReceita(r); setModalReceita(false); }}/>}
@@ -564,83 +527,8 @@ function AppLogado({ session }) {
   );
 }
 
-// ── GRÁFICO DE ÁREA ──────────────────────────────────────────────────────────────
-function GraficoAba({ despesas, receitas, assinaturas }) {
-  const dadosPorMes = useMemo(() => {
-    const meses = [];
-    for (let i = 5; i >= 0; i--) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); meses.push(d.toISOString().substring(0, 7)); }
-    return meses.map(m => {
-      const pagas = despesas.filter(d => d.status === "paga" && d.data_pagamento?.startsWith(m)).reduce((s, d) => s + parseFloat(d.valor || 0), 0);
-      const pendentes = despesas.filter(d => (d.status === "pendente" || !d.status) && (d.data_vencimento || d.data)?.startsWith(m)).reduce((s, d) => s + parseFloat(d.valor || 0), 0);
-      const rec = receitas.filter(r => (r.mes || mesAtual()) === m).reduce((s, r) => s + parseFloat(r.valor || 0), 0);
-      const assin = m === mesAtual() ? assinaturas.reduce((s, a) => s + parseFloat(a.valor || 0), 0) : 0;
-      return { mes: nomeMesAbrev(m), Receitas: +rec.toFixed(2), Pagas: +pagas.toFixed(2), Pendentes: +pendentes.toFixed(2), Assinaturas: +assin.toFixed(2) };
-    });
-  }, [despesas, receitas, assinaturas]);
-
-  const ttStyle = { contentStyle:{background:"#0d1829",border:"1px solid #1e3a5f",borderRadius:12,fontFamily:"Inter"}, labelStyle:{color:"#94a3b8",fontSize:12}, itemStyle:{color:"#e2e8f0",fontSize:12} };
-
-  return (
-    <div className="space-y-8 animate-fadeInUp">
-      <div className="flex items-center gap-3"><BotaoAjuda topico="grafico"/><div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Visão financeira</p><h2 className="font-display text-3xl italic text-slate-100 mt-1">Gráfico — últimos 6 meses</h2></div></div>
-
-      <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl p-6">
-        <h3 className="font-display text-lg italic text-slate-200 mb-6">Receitas vs Despesas Pagas</h3>
-        <ResponsiveContainer width="100%" height={280}>
-          <AreaChart data={dadosPorMes} margin={{top:10,right:10,left:0,bottom:0}}>
-            <defs>
-              <linearGradient id="gRec" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#34d399" stopOpacity={0.3}/><stop offset="95%" stopColor="#34d399" stopOpacity={0}/></linearGradient>
-              <linearGradient id="gPag" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#60a5fa" stopOpacity={0.3}/><stop offset="95%" stopColor="#60a5fa" stopOpacity={0}/></linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f"/>
-            <XAxis dataKey="mes" tick={{fill:"#64748b",fontSize:11,fontFamily:"Inter"}} axisLine={false} tickLine={false}/>
-            <YAxis tick={{fill:"#64748b",fontSize:11,fontFamily:"JetBrains Mono"}} axisLine={false} tickLine={false} tickFormatter={v=>`R$${v}`}/>
-            <Tooltip {...ttStyle} formatter={v=>formatBRL(v)}/>
-            <Legend wrapperStyle={{fontFamily:"Inter",fontSize:12,color:"#94a3b8",paddingTop:16}}/>
-            <Area type="monotone" dataKey="Receitas" stroke="#34d399" strokeWidth={2} fill="url(#gRec)" dot={{fill:"#34d399",strokeWidth:0,r:4}} activeDot={{r:6}}/>
-            <Area type="monotone" dataKey="Pagas" stroke="#60a5fa" strokeWidth={2} fill="url(#gPag)" dot={{fill:"#60a5fa",strokeWidth:0,r:4}} activeDot={{r:6}}/>
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl p-6">
-        <h3 className="font-display text-lg italic text-slate-200 mb-6">Pendentes vs Assinaturas</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={dadosPorMes} margin={{top:10,right:10,left:0,bottom:0}}>
-            <defs>
-              <linearGradient id="gPend" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f87171" stopOpacity={0.3}/><stop offset="95%" stopColor="#f87171" stopOpacity={0}/></linearGradient>
-              <linearGradient id="gAss" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#a78bfa" stopOpacity={0.3}/><stop offset="95%" stopColor="#a78bfa" stopOpacity={0}/></linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f"/>
-            <XAxis dataKey="mes" tick={{fill:"#64748b",fontSize:11,fontFamily:"Inter"}} axisLine={false} tickLine={false}/>
-            <YAxis tick={{fill:"#64748b",fontSize:11,fontFamily:"JetBrains Mono"}} axisLine={false} tickLine={false} tickFormatter={v=>`R$${v}`}/>
-            <Tooltip {...ttStyle} formatter={v=>formatBRL(v)}/>
-            <Legend wrapperStyle={{fontFamily:"Inter",fontSize:12,color:"#94a3b8",paddingTop:16}}/>
-            <Area type="monotone" dataKey="Pendentes" stroke="#f87171" strokeWidth={2} fill="url(#gPend)" dot={{fill:"#f87171",strokeWidth:0,r:4}} activeDot={{r:6}}/>
-            <Area type="monotone" dataKey="Assinaturas" stroke="#a78bfa" strokeWidth={2} fill="url(#gAss)" dot={{fill:"#a78bfa",strokeWidth:0,r:4}} activeDot={{r:6}}/>
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          {label:"Receitas (mês)", valor:dadosPorMes[5]?.Receitas, cor:"text-emerald-400"},
-          {label:"Pagas (mês)", valor:dadosPorMes[5]?.Pagas, cor:"text-blue-400"},
-          {label:"Pendentes (mês)", valor:dadosPorMes[5]?.Pendentes, cor:"text-red-400"},
-          {label:"Assinaturas", valor:dadosPorMes[5]?.Assinaturas, cor:"text-violet-400"},
-        ].map(c => (
-          <div key={c.label} className="bg-[#0d1829] border border-blue-900/30 rounded-2xl p-4">
-            <p className="font-mono-c text-[10px] text-slate-400/50 uppercase mb-2">{c.label}</p>
-            <p className={`font-mono-c num-tabular text-xl font-bold ${c.cor}`}>{formatBRL(c.valor)}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── USUÁRIOS (ADMIN) ─────────────────────────────────────────────────────────────
-function UsuariosAba() {
+function UsuariosAba({ onAviso }) {
   const [usuarios, setUsuarios] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [expandido, setExpandido] = useState(null);
@@ -648,15 +536,20 @@ function UsuariosAba() {
   const carregar = async () => {
     setCarregando(true);
     const { data, error } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
-    if (!error) setUsuarios(data || []);
+    if (error) onAviso?.("Não foi possível carregar os usuários: " + error.message);
+    else setUsuarios(data || []);
     setCarregando(false);
   };
   useEffect(() => { carregar(); }, []);
 
   const toggleAdmin = async (id, atual) => {
-    const { error } = await supabase.rpc("toggle_user_admin", { target_id: id, novo_valor: !atual });
-    if (!error) setUsuarios(prev => prev.map(u => u.id === id ? { ...u, is_admin: !atual } : u));
-    else alert("Erro: " + error.message);
+    const { data, error } = await supabase.rpc("toggle_user_admin", { target_id: id, novo_valor: !atual });
+    if (error) return onAviso?.("Não foi possível alterar a permissão: " + error.message);
+    // Um UPDATE barrado por RLS não gera erro, só afeta 0 linhas: o estado exibido vem
+    // do valor efetivo devolvido pelo RPC, nunca da suposição de que deu certo.
+    if (typeof data !== "boolean") { await carregar(); return; }
+    setUsuarios(prev => prev.map(u => u.id === id ? { ...u, is_admin: data } : u));
+    onAviso?.(data ? "Usuário agora é admin." : "Permissão de admin removida.", "info");
   };
 
   return (
@@ -824,14 +717,28 @@ function PainelNovidades() {
   );
 }
 
+// A parcela vive em coluna, não na descrição: sem isto duas parcelas da mesma compra
+// aparecem com o mesmo texto na lista.
+const rotuloParcela = (d) =>
+  d.parcela_atual && d.parcelas_total
+    ? <span className="font-mono-c text-[10px] text-slate-400/50 ml-2">{d.parcela_atual}/{d.parcelas_total}</span>
+    : null;
+
 // ── HISTÓRICO ────────────────────────────────────────────────────────────────────
-function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome }) {
+function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome, onAviso }) {
   const mesesComDespesas = useMemo(() => {
     const s = new Set();
     despesas.forEach(d => { if (d.status === "paga" && d.data_pagamento) s.add(d.data_pagamento.substring(0,7)); if (d.status !== "paga" && d.data_vencimento) s.add(d.data_vencimento.substring(0,7)); });
     return [...s].sort((a,b) => b.localeCompare(a));
   }, [despesas]);
   const [mesSelecionado, setMesSelecionado] = useState(mesesComDespesas[0] || mesAtual());
+  // O estado inicial é lido uma única vez; sem este ajuste a seleção fica presa num
+  // mês que deixou de existir na lista.
+  useEffect(() => {
+    if (mesesComDespesas.length > 0 && !mesesComDespesas.includes(mesSelecionado)) {
+      setMesSelecionado(mesesComDespesas[0]);
+    }
+  }, [mesesComDespesas, mesSelecionado]);
   const despesasDomes = useMemo(() => despesas.filter(d => { if (d.status === "paga") return d.data_pagamento?.startsWith(mesSelecionado); return (d.data_vencimento || d.data)?.startsWith(mesSelecionado); }).sort((a,b) => (a.data_vencimento||a.data||"").localeCompare(b.data_vencimento||b.data||"")), [despesas, mesSelecionado]);
   const totalPago = useMemo(() => despesasDomes.filter(d => d.status === "paga").reduce((s,d) => s + parseFloat(d.valor||0), 0), [despesasDomes]);
   const totalPendente = useMemo(() => despesasDomes.filter(d => d.status !== "paga").reduce((s,d) => s + parseFloat(d.valor||0), 0), [despesasDomes]);
@@ -849,7 +756,7 @@ function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome
       const pend = despesasDomes.filter(d => d.status !== "paga");
       if (pend.length > 0) { doc.setFontSize(13); doc.text("Despesas Pendentes", 20, y); y+=8; autoTable(doc, {startY:y, head:[["Descrição","Vencimento","Valor"]], body:pend.map(d=>[d.descricao,formatarDataBR(d.data_vencimento||d.data),formatBRL(d.valor)]), theme:"grid", headStyles:{fillColor:[180,83,9]}}); }
       doc.save(`relatorio-${mesSelecionado}.pdf`);
-    } catch (e) { alert("Erro ao gerar PDF: " + e.message); }
+    } catch (e) { onAviso?.("Não foi possível gerar o PDF: " + e.message); }
   };
 
   return (
@@ -874,7 +781,7 @@ function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome
             {despesasDomes.map(d => (
               <div key={d.id} className="flex items-center gap-3 p-4 hover:bg-white/[0.02]">
                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${d.status==="paga"?"bg-emerald-400":"bg-sky-400"}`}/>
-                <div className="flex-1"><div className="font-body text-slate-200">{d.descricao}</div><div className="font-mono-c text-[10px] text-slate-400/50">{d.status==="paga"?`Pago em ${formatarDataBR(d.data_pagamento)}`:`Vence em ${formatarDataBR(d.data_vencimento||d.data)}`}</div></div>
+                <div className="flex-1"><div className="font-body text-slate-200">{d.descricao}{rotuloParcela(d)}</div><div className="font-mono-c text-[10px] text-slate-400/50">{d.status==="paga"?`Pago em ${formatarDataBR(d.data_pagamento)}`:`Vence em ${formatarDataBR(d.data_vencimento||d.data)}`}</div></div>
                 <div className={`font-mono-c num-tabular text-sm ${d.status==="paga"?"text-emerald-400":"text-slate-300"}`}>{formatBRL(d.valor)}</div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-body ${d.status==="paga"?"bg-emerald-500/15 text-emerald-400":"bg-sky-500/15 text-sky-400"}`}>{d.status==="paga"?"Pago":"Pendente"}</span>
               </div>
@@ -887,7 +794,7 @@ function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome
 }
 
 // ── HOME ─────────────────────────────────────────────────────────────────────────
-function HomeAba({ quote, saldo, temReceitaNoMes, totalReceitasMes, totalDespesasMes, totalPendentesMes, despesasPorCategoria, proximasAssinaturas, receitas, despesas, assinaturas, parcelamentos, userNome }) {
+function HomeAba({ quote, saldo, temReceitaNoMes, totalReceitasMes, totalDespesasMes, totalPendentesGeral, proximasAssinaturas, receitas, despesas, assinaturas, parcelamentos, userNome, onAviso }) {
   const despesasPagasCount = despesas.filter(d => d.status === "paga").length;
   const parcelamentosAtivos = parcelamentos.filter(p => p.status === "ativo").length;
   const receitasMes = receitas.filter(r => (r.mes || mesAtual()) === mesAtual()).length;
@@ -898,12 +805,23 @@ function HomeAba({ quote, saldo, temReceitaNoMes, totalReceitasMes, totalDespesa
       const doc = new jsPDF(); const pw = doc.internal.pageSize.getWidth(); let y = 20;
       doc.setFontSize(22); doc.text("Relatório de Despesas", pw/2, y, {align:"center"}); y+=12;
       doc.setFontSize(9); doc.setTextColor(120,120,140); doc.text(`Usuário: ${userNome}   |   Mês: ${nomeMes(mesAtual())}   |   ${new Date().toLocaleDateString("pt-BR")}`, pw/2, y, {align:"center"}); doc.setTextColor(0,0,0); y+=15;
-      autoTable(doc, {startY:y, head:[["Item","Valor"]], body:[["Receitas",formatBRL(totalReceitasMes)],["Despesas Pagas",formatBRL(totalDespesasMes)],["A Pagar",formatBRL(totalPendentesMes)],["Saldo",temReceitaNoMes?formatBRL(saldo):"Sem receita cadastrada"]], theme:"grid", headStyles:{fillColor:[30,64,175]}}); y=doc.lastAutoTable.finalY+15;
+      // O resumo mistura valores do mês com acumulados, por isso cada linha traz o
+      // período: as tabelas seguintes listam apenas o mês corrente.
+      const dpe = despesas.filter(d=>(d.status==="pendente"||!d.status)&&(d.data_vencimento||d.data)?.startsWith(mesAtual()));
+      const totalPendentesDoMes = dpe.reduce((s,d)=>s+parseFloat(d.valor||0),0);
+      const mesRef = nomeMes(mesAtual());
+      autoTable(doc, {startY:y, head:[["Item","Valor"]], body:[
+        [`Receitas (${mesRef})`, formatBRL(totalReceitasMes)],
+        [`Despesas pagas (${mesRef})`, formatBRL(totalDespesasMes)],
+        [`A pagar (${mesRef})`, formatBRL(totalPendentesDoMes)],
+        ["A pagar (todos os meses)", formatBRL(totalPendentesGeral)],
+        ["Saldo acumulado (todo o histórico)", temReceitaNoMes?formatBRL(saldo):"Sem receita cadastrada"],
+      ], theme:"grid", headStyles:{fillColor:[30,64,175]}}); y=doc.lastAutoTable.finalY+15;
       const rm = receitas.filter(r=>(r.mes||mesAtual())===mesAtual()); if(rm.length>0){doc.setFontSize(13);doc.text("Receitas",20,y);y+=8;autoTable(doc,{startY:y,head:[["Fonte","Valor"]],body:rm.map(r=>[r.fonte,formatBRL(r.valor)]),theme:"grid",headStyles:{fillColor:[5,150,105]}});y=doc.lastAutoTable.finalY+15;}
       const dp = despesas.filter(d=>d.status==="paga"&&d.data_pagamento?.startsWith(mesAtual())); if(dp.length>0){doc.setFontSize(13);doc.text("Despesas Pagas",20,y);y+=8;autoTable(doc,{startY:y,head:[["Descrição","Data","Valor"]],body:dp.map(d=>[d.descricao,formatarDataBR(d.data_pagamento),formatBRL(d.valor)]),theme:"grid",headStyles:{fillColor:[30,64,175]}});y=doc.lastAutoTable.finalY+15;}
-      const dpe = despesas.filter(d=>(d.status==="pendente"||!d.status)&&(d.data_vencimento||d.data)?.startsWith(mesAtual())); if(dpe.length>0){doc.setFontSize(13);doc.text("Despesas Pendentes",20,y);y+=8;autoTable(doc,{startY:y,head:[["Descrição","Vencimento","Valor"]],body:dpe.map(d=>[d.descricao,formatarDataBR(d.data_vencimento||d.data),formatBRL(d.valor)]),theme:"grid",headStyles:{fillColor:[180,83,9]}});}
+      if(dpe.length>0){doc.setFontSize(13);doc.text(`Despesas Pendentes — ${mesRef}`,20,y);y+=8;autoTable(doc,{startY:y,head:[["Descrição","Vencimento","Valor"]],body:dpe.map(d=>[d.descricao,formatarDataBR(d.data_vencimento||d.data),formatBRL(d.valor)]),theme:"grid",headStyles:{fillColor:[180,83,9]}});}
       doc.save(`relatorio-${mesAtual()}.pdf`);
-    } catch(e){alert("Erro: "+e.message);}
+    } catch(e){ onAviso?.("Não foi possível gerar o PDF: " + e.message); }
   };
 
   return (
@@ -913,10 +831,11 @@ function HomeAba({ quote, saldo, temReceitaNoMes, totalReceitasMes, totalDespesa
         <p className="font-display text-3xl italic leading-tight text-slate-100">"{quote.text}"</p>
         {quote.author && <p className="font-body text-sm text-slate-400/70 mt-3">— {quote.author}</p>}
       </section>
+      {/* Escopos diferentes no mesmo grid: dois cards são do mês, dois são acumulados. */}
       <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <CardResumo label="Receitas" valor={totalReceitasMes} icon={TrendingUp} cor="text-emerald-400" delay={2}/>
-        <CardResumo label="Pago" valor={totalDespesasMes} icon={CheckCircle2} cor="text-red-400" delay={3}/>
-        <CardResumo label="A pagar" valor={totalPendentesMes} icon={Clock} cor="text-sky-400" delay={3}/>
+        <CardResumo label="Receitas" escopo="este mês" valor={totalReceitasMes} icon={TrendingUp} cor="text-emerald-400" delay={2}/>
+        <CardResumo label="Pago" escopo="este mês" valor={totalDespesasMes} icon={CheckCircle2} cor="text-red-400" delay={3}/>
+        <CardResumo label="A pagar" escopo="todos os meses" valor={totalPendentesGeral} icon={Clock} cor="text-sky-400" delay={3}/>
         <CardSaldo saldo={saldo} temReceita={temReceitaNoMes} delay={4}/>
       </section>
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -944,11 +863,12 @@ function HomeAba({ quote, saldo, temReceitaNoMes, totalReceitasMes, totalDespesa
   );
 }
 
-function CardResumo({ label, valor, icon: Icon, cor, delay }) {
+function CardResumo({ label, escopo, valor, icon: Icon, cor, delay }) {
   return (
     <div className={`animate-fadeInUp delay-${delay} rounded-2xl p-6 border bg-[#0d1829] border-blue-900/30`}>
       <div className="flex items-center justify-between mb-3"><span className="font-mono-c text-[10px] text-slate-400/50 uppercase">{label}</span><Icon size={16} className={cor}/></div>
       <div className={`font-mono-c num-tabular text-2xl font-bold not-italic ${cor}`}>{formatBRL(valor)}</div>
+      {escopo && <p className="font-body text-[10px] text-slate-400/40 mt-1">{escopo}</p>}
     </div>
   );
 }
@@ -957,7 +877,7 @@ function CardSaldo({ saldo, temReceita, delay }) {
     <div className={`animate-fadeInUp delay-${delay} rounded-2xl p-6 border bg-[#0d1829] border-blue-500/30`}>
       <div className="flex items-center justify-between mb-3"><span className="font-mono-c text-[10px] text-slate-400/50 uppercase">Saldo acumulado</span><Wallet size={16} className="text-blue-400"/></div>
       {temReceita?<div className={`font-mono-c num-tabular text-2xl font-bold not-italic ${saldo>=0?"text-emerald-400":"text-red-400"}`}>{formatBRL(saldo)}</div>:<div className="font-mono-c text-xl font-bold text-slate-400/40">—</div>}
-      {!temReceita&&<p className="font-body text-[10px] text-slate-400/40 mt-1">Cadastre receitas</p>}
+      <p className="font-body text-[10px] text-slate-400/40 mt-1">{temReceita ? "receitas − despesas pagas, todo o histórico" : "Cadastre receitas"}</p>
     </div>
   );
 }
@@ -1020,7 +940,7 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, onAdicionar
           <div className="divide-y divide-blue-900/20">
             {[...lista].sort((a,b)=>(a.data_vencimento||a.data||"").localeCompare(b.data_vencimento||b.data||"")).map(d=>(
               <div key={d.id} className="flex items-center gap-3 p-4 hover:bg-white/[0.02] group">
-                <div className="flex-1"><div className="font-body text-slate-200">{d.descricao}</div><div className="font-mono-c text-[10px] text-slate-400/50">{formatarDataBR(d.data_vencimento||d.data)}</div></div>
+                <div className="flex-1"><div className="font-body text-slate-200">{d.descricao}{rotuloParcela(d)}</div><div className="font-mono-c text-[10px] text-slate-400/50">{formatarDataBR(d.data_vencimento||d.data)}</div></div>
                 <div className="font-mono-c num-tabular text-slate-300">{formatBRL(d.valor)}</div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   {subAba==="pendentes"&&<button onClick={()=>onMarcarPaga(d.id)} className="p-1 text-emerald-400/70 hover:text-emerald-400"><Check size={14}/></button>}
@@ -1115,20 +1035,6 @@ function AssinaturasAba({ assinaturas, total, onAdicionar, onRemover }) {
 }
 
 // ── MODALS ────────────────────────────────────────────────────────────────────────
-const inputCls = "w-full bg-white/[0.03] border border-blue-900/40 rounded-xl px-4 py-3 text-slate-100 placeholder:text-slate-400/40 focus:outline-none focus:border-blue-500/50 transition-colors";
-const btnPrimary = "w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-body font-medium transition-all";
-
-function ModalBase({ titulo, onFechar, children }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm" onClick={onFechar}>
-      <div className="bg-[#0d1829] border border-blue-900/40 rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e=>e.stopPropagation()}>
-        <div className="flex items-start justify-between p-6 border-b border-blue-900/30 sticky top-0 bg-[#0d1829]"><h3 className="font-display text-2xl italic text-slate-100">{titulo}</h3><button onClick={onFechar}><X size={20} className="text-slate-400/50"/></button></div>
-        <div className="p-6 space-y-4">{children}</div>
-      </div>
-    </div>
-  );
-}
-
 function ModalReceita({ onFechar, onSalvar }) {
   const [fonte,setFonte]=useState(""); const [valor,setValor]=useState(""); const [salvando,setSalvando]=useState(false);
   const submit=async()=>{if(!fonte||!valor)return;setSalvando(true);await onSalvar({fonte,valor:parseFloat(valor),mes:mesAtual()});};
@@ -1138,9 +1044,11 @@ function ModalReceita({ onFechar, onSalvar }) {
 function ModalDespesa({ categorias, onFechar, onSalvar }) {
   const [descricao,setDescricao]=useState(""); const [valor,setValor]=useState(""); const [categoriaId,setCategoriaId]=useState(categorias[0]?.id||"");
   const [dataVencimento,setDataVencimento]=useState(hojeISO()); const [parcelas,setParcelas]=useState(1); const [salvando,setSalvando]=useState(false);
-  const valorParcela=(parseFloat(valor)||0)/Math.max(1,parcelas);
-  const submit=async()=>{if(!descricao||!valor)return;setSalvando(true);await onSalvar({descricao,valor:valorParcela,categoria_id:categoriaId,dataVencimento,parcelas});};
-  return <ModalBase titulo="Nova despesa" onFechar={onFechar}><input type="text" value={descricao} onChange={e=>setDescricao(e.target.value)} placeholder="Ex: Almoço" className={inputCls}/><div className="grid grid-cols-2 gap-3"><input type="number" step="0.01" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0,00" className={inputCls}/><input type="date" value={dataVencimento} onChange={e=>setDataVencimento(e.target.value)} className={inputCls}/></div><input type="number" min="1" max="60" value={parcelas} onChange={e=>setParcelas(Math.max(1,parseInt(e.target.value)||1))} placeholder="Parcelas" className={inputCls}/>{parcelas>1&&<p className="font-mono-c text-xs text-sky-400">{parcelas}x de {formatBRL(valorParcela)}</p>}<button onClick={submit} disabled={salvando} className={btnPrimary}>{salvando?"Salvando...":"Salvar"}</button></ModalBase>;
+  // O campo é o valor total da compra; quem divide é adicionarDespesa.
+  const valoresParcelas=dividirEmParcelas(valor,Math.max(1,parcelas));
+  const valorParcela=valoresParcelas[0]; const ultimaParcela=valoresParcelas[valoresParcelas.length-1];
+  const submit=async()=>{if(!descricao||!valor)return;setSalvando(true);await onSalvar({descricao,valor:parseFloat(valor),categoria_id:categoriaId,dataVencimento,parcelas});};
+  return <ModalBase titulo="Nova despesa" onFechar={onFechar}><input type="text" value={descricao} onChange={e=>setDescricao(e.target.value)} placeholder="Ex: Almoço" className={inputCls}/><div className="grid grid-cols-2 gap-3"><input type="number" step="0.01" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0,00" className={inputCls}/><input type="date" value={dataVencimento} onChange={e=>setDataVencimento(e.target.value)} className={inputCls}/></div><input type="number" min="1" max="60" value={parcelas} onChange={e=>setParcelas(Math.max(1,parseInt(e.target.value)||1))} placeholder="Parcelas" className={inputCls}/>{parcelas>1&&<p className="font-mono-c text-xs text-sky-400">{parcelas}x de {formatBRL(valorParcela)}{ultimaParcela!==valorParcela?` (última: ${formatBRL(ultimaParcela)})`:""}</p>}<button onClick={submit} disabled={salvando} className={btnPrimary}>{salvando?"Salvando...":"Salvar"}</button></ModalBase>;
 }
 
 function ModalAssinatura({ onFechar, onSalvar }) {

@@ -41,10 +41,12 @@ export default function Auth() {
       return mostrarMsg("A senha precisa ter pelo menos 6 caracteres", "error");
     setCarregando(true); setMensagem(null);
 
+    const codigo = token.trim().toUpperCase();
+
     // 1. Só VERIFICA se o token é válido e está disponível — não consome ainda
     const { data: tokenValido, error: errToken } = await supabase.rpc(
       "verificar_codigo_acesso",
-      { codigo_input: token.trim().toUpperCase() }
+      { codigo_input: codigo }
     );
     if (errToken) { setCarregando(false); return mostrarMsg("Erro ao validar token. Tente novamente.", "error"); }
     if (!tokenValido) { setCarregando(false); return mostrarMsg("Token inválido ou já utilizado. Solicite um novo token.", "error"); }
@@ -59,16 +61,33 @@ export default function Auth() {
       return mostrarMsg(traduzErro(error.message), "error");
     }
 
-    // 3. Só consome o token APÓS o signUp ter sucesso
-    await supabase.rpc("consumir_codigo_acesso", {
-      codigo_input: token.trim().toUpperCase(),
-      email_input: email,
-    });
+    // `identities` vazio é como o Supabase sinaliza que o email já existia: ele responde
+    // sucesso para não revelar quais emails estão cadastrados. Sem esta checagem, o token
+    // seria consumido sem nenhuma conta nova ter sido criada.
+    if (!signUpData?.user?.identities?.length) {
+      setCarregando(false);
+      return mostrarMsg("Este email já está cadastrado. Faça login ou recupere a senha.", "error");
+    }
+
+    // 3. Só consome o token depois de a conta existir de fato
+    const { data: consumido, error: errConsumo } = await supabase.rpc(
+      "consumir_codigo_acesso",
+      { codigo_input: codigo, email_input: email }
+    );
 
     setCarregando(false);
-    mostrarMsg("Conta criada! Verifique seu email e depois faça login.", "success");
-    setModo("login");
     setToken("");
+
+    if (errConsumo || consumido === false) {
+      return mostrarMsg("Conta criada, mas o token não ficou marcado como usado. Avise quem te deu acesso.", "info");
+    }
+
+    // Com a confirmação de email desativada o signUp já devolve sessão e o app entra
+    // sozinho; a mensagem cobre o caso de a confirmação estar ligada no projeto.
+    if (!signUpData.session) {
+      mostrarMsg("Conta criada! Confirme seu email e depois faça login.", "success");
+      setModo("login");
+    }
   };
 
   const handleRecuperar = async () => {

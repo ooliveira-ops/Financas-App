@@ -1,57 +1,86 @@
 # Finanças Filipe
 
-App de controle financeiro pessoal com **receitas, despesas parceladas, categorias, assinaturas, gráficos e painel admin**.
+App de controle financeiro pessoal com receitas, despesas parceladas, categorias, assinaturas, gráficos e painel admin.
 
-![React](https://img.shields.io/badge/React-19-blue) ![Vite](https://img.shields.io/badge/Vite-6-purple) ![Tailwind](https://img.shields.io/badge/Tailwind-3-cyan) ![Supabase](https://img.shields.io/badge/Supabase-green) ![License](https://img.shields.io/badge/uso-pessoal-orange)
-
----
-
-## ✨ Funcionalidades
-
-- 🔐 **Acesso por tokens** — sistema de convite com tokens únicos, sem cadastro aberto
-- 💸 **Despesas** — pendentes vs pagas, com controle de vencimento e categorias
-- 📅 **Parcelamento automático** — ex: R$800 em 4x vira 4 despesas mensais separadas
-- 🔄 **Assinaturas recorrentes** — despesas geradas automaticamente todo mês
-- 💰 **Receitas mensais** — registre suas entradas por mês
-- 📊 **Gráfico de área** — receitas, despesas pagas, pendentes e assinaturas dos últimos 6 meses
-- 🗂️ **Histórico por mês** — veja despesas de qualquer mês e exporte em PDF
-- 📄 **Relatório PDF** — gera relatório completo do mês com um clique
-- 🔔 **Avisos de vencimento** — alerta para contas vencidas ou vencendo em 7 dias
-- ❓ **Botão de Dúvidas** — cada seção (Despesas, Receitas, Assinaturas, Parcelamentos, Gráfico, Histórico, Home) tem um botão de ajuda explicando como aquela função funciona, com passo a passo
-- 🛡️ **Painel Admin** — gerencia usuários, último login, permissões e publica novidades
-- 📢 **Sistema de novidades** — admin publica atualizações pelo painel, sem tocar no código
-- 💡 **Saldo real** — só exibido quando há receita cadastrada no mês
-- 🎨 **Design azul escuro** — tema refinado com Fraunces + JetBrains Mono
+![React](https://img.shields.io/badge/React-18-blue) ![Vite](https://img.shields.io/badge/Vite-5-purple) ![Tailwind](https://img.shields.io/badge/Tailwind-3-cyan) ![Supabase](https://img.shields.io/badge/Supabase-green) ![License](https://img.shields.io/badge/uso-pessoal-orange)
 
 ---
 
-## 🛠️ Stack
+## Funcionalidades
 
-- **React 19** + **Vite**
-- **Tailwind CSS** (tema personalizado)
+- **Acesso por tokens** — convite com tokens únicos, sem cadastro aberto
+- **Despesas** — pendentes vs pagas, com vencimento, categorias e filtro por mês. Por padrão a lista mostra todos os meses, para que uma conta atrasada não desapareça na virada
+- **Parcelamento de despesa** — informe o valor total e o número de vezes; o app cria uma despesa por mês e divide em centavos exatos, com a última parcela absorvendo o arredondamento
+- **Parcelamentos** — compras grandes divididas em várias vezes: o app cria uma despesa por parcela e a aba mostra o progresso de pagamento com barra e próxima data
+- **Assinaturas recorrentes** — a despesa do mês é gerada automaticamente no dia de vencimento escolhido
+- **Receitas mensais** — registre as entradas de cada mês
+- **Saldo acumulado** — soma as receitas de todo o histórico e desconta as despesas pagas. O que sobra de um mês transita sozinho para o mês seguinte, sem lançamento manual
+- **Gráfico de área** — receitas, despesas pagas, pendentes e assinaturas dos últimos 6 meses
+- **Histórico por mês** — despesas de qualquer mês, com exportação em PDF
+- **Relatório PDF** — resumo do mês em um clique, com o período indicado em cada linha
+- **Avisos de vencimento** — alerta para contas vencidas ou vencendo em até 7 dias
+- **Botão de Dúvidas** — cada seção tem um botão de ajuda com explicação e passo a passo
+- **Painel Admin** — usuários, último login, permissões e publicação de novidades
+- **Sistema de novidades** — o admin publica atualizações pelo painel, sem tocar no código
+- **PWA** — instalável no celular e no desktop
+- **Design azul escuro** — Fraunces + JetBrains Mono + Inter
+
+---
+
+## Stack
+
+- **React 18** + **Vite 5**
+- **Tailwind CSS 3** (tema personalizado)
 - **Supabase** (PostgreSQL + Auth + RLS)
 - **Recharts** (gráficos de área)
 - **jsPDF + jspdf-autotable** (exportação PDF)
 - **Lucide Icons**
+- **vite-plugin-pwa** (service worker e manifest)
 - Deploy na **Vercel**
 
 ---
 
-## 🗂️ Estrutura
+## Estrutura
 
 ```
 src/
-├── App.jsx        # Toda a lógica: abas, modais, cálculos, gráfico, admin, botões de Dúvidas
-├── Auth.jsx       # Login, cadastro com token e recuperação de senha
-├── supabase.js    # Cliente Supabase
-└── main.jsx       # Entry point
+├── App.jsx         # Estado global, abas, modais, cálculos, painel admin, relatório PDF
+├── Auth.jsx        # Login, cadastro com token e recuperação de senha
+├── GraficoAba.jsx  # Aba Gráfico — carregada sob demanda, mantém o Recharts fora do bundle inicial
+├── Ajuda.jsx       # Textos do botão "Dúvidas" (AJUDA_CONTEUDO)
+├── ModalBase.jsx   # Modal genérico e confirmação de exclusão
+├── utils.js        # Helpers de data e dinheiro
+├── supabase.js     # Cliente Supabase
+└── main.jsx        # Entry point
+
+api/ping.js         # Keep-alive do projeto Supabase, chamado pelo cron da Vercel
+supabase-setup.sql  # Schema completo: tabelas, índices, RLS e funções
 ```
+
+Toda a lógica de negócio roda no cliente; o Supabase é chamado direto do browser e o isolamento entre usuários é feito por Row Level Security.
+
+> As datas são calculadas em **hora local**, não em UTC. O app é pensado para UTC-3: se for usá-lo em outro fuso, revise os helpers de `src/utils.js`.
 
 ---
 
 ## 🚀 Como criar a SUA versão
 
-### 1️⃣ Clonar e instalar
+São 10 passos, uns 20 minutos no total. Você precisa de: **Node 18+**, uma conta no
+**Supabase** (grátis) e — só para publicar na internet — uma conta na **Vercel** (grátis).
+
+| Etapa | Passos | O que você faz |
+|---|---|---|
+| Preparar | 1 | Baixa o projeto na sua máquina |
+| Banco de dados | 2 – 4 | Cria o projeto no Supabase e monta as tabelas |
+| Acesso | 5 – 7 | Gera os tokens de convite e vira admin |
+| Rodar | 8 – 9 | Configura as chaves e abre o app localmente |
+| Publicar | 10 | Sobe na Vercel com URL própria |
+
+---
+
+### 💻 Etapa 1 — Preparar
+
+#### 1️⃣ Clonar e instalar
 
 ```bash
 git clone https://github.com/ooliveira-ops/Financas-Filipe.git
@@ -59,193 +88,62 @@ cd Financas-Filipe
 npm install
 ```
 
-### 2️⃣ Criar projeto no Supabase
+**Deu certo se:** a pasta `node_modules` apareceu e o comando terminou sem erro.
+
+---
+
+### 🗄️ Etapa 2 — Banco de dados
+
+#### 2️⃣ Criar o projeto no Supabase
 
 1. Acesse [supabase.com](https://supabase.com) e crie uma conta
-2. **New Project** → nome e senha → aguarde ~2 minutos
+2. Clique em **New Project** → escolha um nome e uma senha → aguarde ~2 minutos
 
-### 3️⃣ Desativar confirmação de email
+O projeto demora um pouco para ficar pronto. Espere o painel carregar antes de seguir.
 
-No Supabase → **Authentication → Providers → Email** → desative **"Confirm email"** → salve.
+#### 3️⃣ Desativar a confirmação de email
 
-> Sem isso, o usuário precisa confirmar o email antes de logar, o que pode causar problemas com o fluxo de token.
+No Supabase → **Authentication → Providers → Email** → desative **"Confirm email"** → **Save**.
 
-### 4️⃣ Rodar os SQLs
+> ⚠️ Sem isso, a pessoa precisa confirmar o email antes de logar, o que atrapalha o fluxo de token.
 
-No Supabase → **SQL Editor** → rode na ordem:
+#### 4️⃣ Criar as tabelas
 
-**Tabelas e políticas:**
+No Supabase → **SQL Editor** → **New query** → cole todo o conteúdo de
+**`supabase-setup.sql`** (está na raiz do repositório) → **Run**.
 
-```sql
--- Categorias
-CREATE TABLE public.categorias (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  nome TEXT NOT NULL,
-  cor TEXT,
-  icone TEXT,
-  padrao BOOLEAN DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+Esse arquivo é a única definição do schema. Ele cria:
 
--- Despesas
-CREATE TABLE public.despesas (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  categoria_id UUID REFERENCES public.categorias,
-  descricao TEXT NOT NULL,
-  valor NUMERIC NOT NULL,
-  data DATE,
-  data_vencimento DATE,
-  data_pagamento DATE,
-  status TEXT DEFAULT 'pendente',
-  parcela_atual INT,
-  parcelas_total INT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+- **as tabelas** — `categorias`, `receitas`, `despesas`, `assinaturas`, `parcelamentos`, `profiles`, `novidades`, `codigos_acesso`
+- **as políticas de RLS** e os índices
+- **o trigger** que cria o perfil no cadastro
+- **as funções** `verificar_codigo_acesso`, `consumir_codigo_acesso`, `toggle_user_admin`, `gerar_token_aleatorio` e `ping`
 
--- Receitas
-CREATE TABLE public.receitas (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  fonte TEXT NOT NULL,
-  valor NUMERIC NOT NULL,
-  mes TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+**Deu certo se:** apareceu *Success. No rows returned* e as tabelas estão em **Table Editor**.
 
--- Assinaturas
-CREATE TABLE public.assinaturas (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  nome TEXT NOT NULL,
-  valor NUMERIC NOT NULL,
-  dia_vencimento INT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+O script é idempotente (`IF NOT EXISTS` / `OR REPLACE`), então roda direto num projeto novo.
+**Num projeto que já está em produção, compare antes com o schema existente** — em especial
+as policies, que podem ter sido ajustadas pelo painel.
 
--- Parcelamentos
-CREATE TABLE public.parcelamentos (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users NOT NULL,
-  descricao TEXT NOT NULL,
-  valor_total NUMERIC NOT NULL,
-  parcelas_total INT NOT NULL,
-  parcelas_pagas INT DEFAULT 0,
-  valor_pago NUMERIC DEFAULT 0,
-  proxima_parcela_data DATE,
-  categoria_id UUID,
-  status TEXT DEFAULT 'ativo',
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+> 📌 Sempre que mudar algo no banco pelo painel do Supabase, reflita a mudança nesse arquivo.
+> Ele é a única versão recuperável do schema.
 
--- Profiles (admin + último login)
-CREATE TABLE public.profiles (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  nome TEXT,
-  email TEXT,
-  is_admin BOOLEAN DEFAULT FALSE,
-  ultimo_login TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+---
 
--- Novidades (banner de atualizações)
-CREATE TABLE public.novidades (
-  id SERIAL PRIMARY KEY,
-  versao TEXT NOT NULL UNIQUE,
-  itens JSONB NOT NULL,
-  ativo BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+### 🎟️ Etapa 3 — Acesso
 
--- RLS
-ALTER TABLE public.categorias ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.despesas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.receitas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.assinaturas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.parcelamentos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.novidades ENABLE ROW LEVEL SECURITY;
+#### 5️⃣ Gerar os tokens de convite
 
--- Políticas
-CREATE POLICY "user_own_categorias" ON public.categorias FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "user_own_despesas" ON public.despesas FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "user_own_receitas" ON public.receitas FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "user_own_assinaturas" ON public.assinaturas FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "user_own_parcelamentos" ON public.parcelamentos FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "perfis_visiveis" ON public.profiles FOR SELECT TO authenticated USING (true);
-CREATE POLICY "usuario_atualiza_proprio" ON public.profiles FOR UPDATE TO authenticated USING (auth.uid() = id);
-CREATE POLICY "novidades_leitura" ON public.novidades FOR SELECT TO authenticated USING (true);
-CREATE POLICY "novidades_admin" ON public.novidades FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND is_admin = TRUE)
-);
-```
-
-**Trigger de criação de perfil:**
+O cadastro é fechado: cada pessoa precisa de um token para criar a conta.
+No **SQL Editor**, rode para criar os 10 primeiros:
 
 ```sql
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, nome, email)
-  VALUES (
-    NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'nome', split_part(NEW.email, '@', 1)),
-    NEW.email
-  )
-  ON CONFLICT (id) DO NOTHING;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+INSERT INTO public.codigos_acesso (codigo, descricao)
+SELECT public.gerar_token_aleatorio(), 'Lote inicial'
+FROM generate_series(1, 10);
 ```
 
-**Funções de token (verificar e consumir separados):**
-
-```sql
--- Verifica se o token está disponível (sem consumir)
-CREATE OR REPLACE FUNCTION verificar_codigo_acesso(codigo_input TEXT)
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM public.codigos_acesso
-    WHERE codigo = codigo_input
-    AND ativo = TRUE
-    AND usado_por IS NULL
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
--- Consome o token após signUp confirmado
-CREATE OR REPLACE FUNCTION consumir_codigo_acesso(codigo_input TEXT, email_input TEXT)
-RETURNS VOID AS $$
-BEGIN
-  UPDATE public.codigos_acesso
-  SET ativo = FALSE,
-      usado_por = email_input,
-      usado_em = NOW()
-  WHERE codigo = codigo_input;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-```
-
-**Depois:** rode o arquivo `supabase-setup.sql` do repositório para criar os tokens e demais funções auxiliares.
-
-### 5️⃣ Definir o admin
-
-Após criar sua conta, pegue seu UUID em **Authentication → Users** e rode:
-
-```sql
-INSERT INTO profiles (id, nome, email, is_admin)
-VALUES ('seu-uuid-aqui', 'Seu Nome', 'seu@email.com', TRUE)
-ON CONFLICT (id) DO UPDATE SET is_admin = TRUE;
-```
-
-### 6️⃣ Ver seus tokens
+#### 6️⃣ Ver seus tokens
 
 ```sql
 SELECT lpad(id::text, 2, '0') AS "#", codigo AS "Token", ativo AS "Disponível"
@@ -253,11 +151,27 @@ FROM public.codigos_acesso
 ORDER BY id;
 ```
 
-📝 **Salve os tokens em local seguro.** São usados para dar acesso a outras pessoas.
+🔑 **Salve os tokens em local seguro.** São eles que dão acesso ao app.
 
-### 7️⃣ Configurar variáveis de ambiente
+#### 7️⃣ Virar admin
 
-Crie `.env.local` na raiz (esse arquivo **não vai pro GitHub** — confira se `.env.local` está no seu `.gitignore`):
+Crie sua conta pelo app usando um dos tokens acima. O perfil é criado automaticamente
+pelo trigger, então basta promover:
+
+```sql
+UPDATE profiles SET is_admin = TRUE WHERE email = 'coloque-seu-email-aqui';
+```
+
+**Deu certo se:** a aba **Usuários** passou a aparecer no app. Dali em diante, novas
+promoções podem ser feitas pelo próprio painel.
+
+---
+
+### ⚙️ Etapa 4 — Rodar
+
+#### 8️⃣ Configurar as variáveis de ambiente
+
+Crie o arquivo `.env.local` na raiz do projeto:
 
 ```env
 VITE_SUPABASE_URL=https://seu-projeto.supabase.co
@@ -265,31 +179,54 @@ VITE_SUPABASE_ANON_KEY=sua-chave-anon-aqui
 VITE_WHATSAPP_NUMERO=SEU_NUMERO_AQUI
 ```
 
-- As duas primeiras chaves ficam em: Supabase → **Project Settings → API**
-- `VITE_WHATSAPP_NUMERO` é opcional — é o número (com DDI+DDD, ex: `5518999999999`) que aparece no link de contato da tela de login. Se não configurar, o link simplesmente não aparece.
+- As duas primeiras ficam em: Supabase → **Project Settings → API**
+- `VITE_WHATSAPP_NUMERO` é **opcional** — é o número (com DDI+DDD, ex: `5518999999999`) do link de contato na tela de login. Se não configurar, o link simplesmente não aparece.
+- Esse arquivo **não vai pro GitHub** — confira se `.env.local` está no seu `.gitignore`.
 
-> ⚠️ **Nunca** coloque números de telefone, e-mails pessoais ou qualquer dado real direto no código. Sempre use variáveis de ambiente (`.env.local`), já que esse repositório é público — qualquer coisa escrita direto no código fica visível pra qualquer pessoa, inclusive no histórico de commits.
+> 🚨 **Nunca** coloque telefone, e-mail pessoal ou qualquer dado real direto no código.
+> Sempre use variáveis de ambiente, já que esse repositório é público — o que for escrito
+> no código fica visível para qualquer pessoa, inclusive no histórico de commits.
 
-### 8️⃣ Rodar localmente
+#### 9️⃣ Rodar localmente
 
 ```bash
 npm run dev
 ```
 
-Abre em http://localhost:5173
+🖥️ Abre em http://localhost:5173 — faça login com a conta criada no passo 7.
 
-### 9️⃣ Deploy na Vercel
+---
+
+### 🌐 Etapa 5 — Publicar
+
+#### 🔟 Deploy na Vercel
 
 1. Acesse [vercel.com](https://vercel.com) e conecte o GitHub
 2. **Import Project** → selecione o repositório
 3. Adicione as **Environment Variables** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e `VITE_WHATSAPP_NUMERO`, se for usar)
-4. **Deploy** — pronto! 🎉
+4. **Deploy**
 
 > Branches diferentes da `main` geram Preview Deployments automáticos com URL própria.
 
+O `vercel.json` também configura um **cron** que chama `/api/ping` a cada 3 dias, para o
+projeto Supabase não ser pausado por inatividade. Esse endpoint usa a função `ping()` do
+banco, então não depende de leitura anônima em nenhuma tabela de dados.
+
 ---
 
-## 📋 Gerenciar tokens
+### 🆘 Se algo der errado
+
+| Sintoma | Provável causa |
+|---|---|
+| Tela branca ao abrir | `.env.local` ausente ou com chave errada — confira e reinicie o `npm run dev` |
+| "Token inválido" no cadastro | O passo 5 não rodou, ou o token já foi usado |
+| Login não entra | "Confirm email" ainda ativo no Supabase (passo 3) |
+| Aba **Usuários** não aparece | `is_admin` não foi marcado (passo 7) — saia e entre de novo na conta |
+| Erro de permissão ao salvar | O `supabase-setup.sql` não rodou por completo — rode de novo, ele é idempotente |
+
+---
+
+## Gerenciar tokens
 
 ```sql
 -- Ver todos os tokens
@@ -316,7 +253,7 @@ UPDATE public.codigos_acesso SET ativo = false;
 
 ---
 
-## 📢 Gerenciar novidades (banner)
+## Gerenciar novidades (banner)
 
 O banner de atualizações é gerenciado pelo **Painel Admin → Usuários → Gerenciar Novidades**, sem tocar no código.
 
@@ -328,37 +265,59 @@ Cada usuário vê o banner **uma vez por versão**.
 
 ---
 
-## ❓ Editar os textos do botão de Dúvidas
+## Editar os textos do botão de Dúvidas
 
-Cada seção do app (Despesas, Receitas, Assinaturas, Parcelamentos, Gráfico, Histórico, Home) tem um botão de ajuda no cabeçalho. O texto de cada um fica em um único lugar, fácil de editar:
+Cada seção do app (Despesas, Receitas, Assinaturas, Parcelamentos, Gráfico, Histórico, Home) tem um botão de ajuda no cabeçalho. Os textos ficam todos num único lugar:
 
-1. Abra `src/App.jsx`
-2. Procure por `AJUDA_CONTEUDO`
-3. Edite o `explicacao` ou os itens de `passos` da seção que quiser mudar
+1. Abra `src/Ajuda.jsx`
+2. Localize o objeto `AJUDA_CONTEUDO`
+3. Edite a `explicacao` ou os itens de `passos` da seção que quiser mudar
 
-Pra adicionar ajuda numa seção nova, basta criar uma nova chave nesse objeto e colocar `<BotaoAjuda topico="sua_chave"/>` no cabeçalho da tela.
+Para adicionar ajuda numa seção nova, crie uma chave nesse objeto e coloque `<BotaoAjuda topico="sua_chave"/>` no cabeçalho da tela.
 
 ---
 
-## 🛡️ Segurança e admin
+## Como os totais são calculados
 
-- O painel **Admin** só aparece para usuários com `is_admin = true` no banco
-- Para garantir acesso em caso de perda de conta, marque uma segunda conta como admin pelo painel ou direto no Supabase → Table Editor → profiles → `is_admin = true`
+Os valores da Home não têm todos o mesmo período, e cada card indica o seu escopo:
+
+| Card | Escopo |
+|---|---|
+| Receitas | mês atual |
+| Pago | despesas pagas no mês atual |
+| A pagar | **todas** as pendentes, de qualquer mês |
+| Saldo acumulado | receitas − despesas pagas, de todo o histórico |
+
+Por isso `Receitas − Pago` não é igual ao Saldo: os dois primeiros são do mês, o saldo é acumulado. É esse acúmulo que faz o dinheiro que sobrou de um mês continuar disponível no mês seguinte.
+
+Parcelamentos entram nessa conta pelas despesas — uma por parcela, criadas junto com o parcelamento — e não pelo campo "já pago" da aba Parcelamentos, que serve apenas para mostrar progresso. Somar os dois contaria o mesmo dinheiro duas vezes.
+
+O relatório PDF segue a mesma lógica e traz o período em cada linha do resumo.
+
+---
+
+## Segurança e admin
+
 - Dados de cada usuário são isolados via **Row Level Security (RLS)**
+- O painel **Admin** só aparece para usuários com `is_admin = true`
+- Para garantir acesso em caso de perda de conta, marque uma segunda conta como admin pelo painel ou no Supabase → Table Editor → profiles → `is_admin = true`
 - O acesso ao app é restrito por tokens distribuídos pelo dono do deploy
-- Este repositório é **público** — nunca cole dados pessoais (telefone, e-mail, chaves de API) direto no código. Use sempre variáveis de ambiente (`.env.local`, nunca commitado) ou os "Secrets" do Supabase/Vercel
+- Promover ou rebaixar admin passa pela função `toggle_user_admin` (`SECURITY DEFINER`), que valida a permissão no servidor — esconder o botão na interface não é controle de acesso
+- **RLS não avisa quando bloqueia**: um `UPDATE` ou `DELETE` barrado por política retorna sucesso com 0 linhas afetadas. Ao escrever código novo, confirme a mudança pelo retorno do banco em vez de assumir que deu certo
+- Este repositório é **público** — nunca cole dados pessoais (telefone, e-mail, chaves de API) direto no código. Use variáveis de ambiente (`.env.local`, nunca commitado) ou os Secrets do Supabase/Vercel
 
 ---
 
 ## ⚠️ Importante
 
 - Cada deploy tem **Supabase e tokens próprios e independentes**
-- O token é **verificado** antes do cadastro e **consumido** só após a conta ser criada com sucesso
+- O token é **verificado** antes do cadastro e **consumido** só depois de a conta ser criada com sucesso
 - Sem confirmar email: desative em Authentication → Providers → Email → "Confirm email"
+- Não há testes automatizados: `npm run build` é a única verificação automática, então mudanças de cálculo devem ser conferidas na interface
 
 ---
 
-## 👤 Autor
+## Autor
 
 **Filipe Oliveira** — [GitHub](https://github.com/ooliveira-ops)
 

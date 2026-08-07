@@ -69,3 +69,11 @@ supabase/.temp/
 
 substituicoes.txt
 mailmap.txt
+
+# ==================================================
+# INSTRUÇÕES LOCAIS DE AGENTE
+# ==================================================
+
+CLAUDE.md
+ARMADILHAS.md
+.claude/

@@ -189,9 +189,13 @@ function AppLogado({ session }) {
       setDespesas(todasDespesas);
 
       if (c.length === 0) {
+        // Duas sessões abertas ao mesmo tempo leem a lista vazia antes de qualquer
+        // insert terminar; sem a unicidade por (user_id, nome) cada uma cria a sua
+        // cópia das categorias padrão. O estado vem de uma releitura porque o upsert
+        // que ignora duplicata devolve só as linhas que ele mesmo inseriu.
         const novas = CATEGORIAS_PADRAO.map(cat => ({ ...cat, user_id: userId, padrao: true }));
-        const { data: criadas } = await supabase.from("categorias").insert(novas).select();
-        setCategorias(criadas || []);
+        const { error } = await supabase.from("categorias").upsert(novas, { onConflict: "user_id,nome", ignoreDuplicates: true });
+        setCategorias(error ? [] : await buscarTodos("categorias"));
       } else { setCategorias(c); }
     } finally {
       carregandoRef.current = false;
@@ -325,7 +329,7 @@ function AppLogado({ session }) {
   });
   const adicionarCategoria = async (n) => {
     const { data, error } = await supabase.from("categorias").insert({ ...n, user_id: userId, padrao: false }).select().single();
-    if (error) return notificar("Não foi possível salvar a categoria: " + error.message);
+    if (error) return notificar(error.code === "23505" ? "Já existe uma categoria com esse nome." : "Não foi possível salvar a categoria: " + error.message);
     if (data) setCategorias(prev => [...prev, data]);
   };
   const removerCategoria = (id) => {

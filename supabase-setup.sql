@@ -121,6 +121,10 @@ ALTER TABLE despesas ADD CONSTRAINT despesas_forma_pagamento_check
 -- ============================================
 
 CREATE INDEX IF NOT EXISTS idx_categorias_user ON categorias(user_id);
+-- Unicidade do nome por usuário: o app cria as categorias padrão quando a lista vem
+-- vazia, e duas sessões abrindo juntas leem esse vazio ao mesmo tempo. É esta restrição
+-- que transforma o segundo insert em conflito, e é o alvo do onConflict do upsert.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categorias_user_nome ON categorias(user_id, nome);
 CREATE INDEX IF NOT EXISTS idx_receitas_user ON receitas(user_id);
 CREATE INDEX IF NOT EXISTS idx_despesas_user ON despesas(user_id);
 CREATE INDEX IF NOT EXISTS idx_despesas_vencimento ON despesas(user_id, data_vencimento);

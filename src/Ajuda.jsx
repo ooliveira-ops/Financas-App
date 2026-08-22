@@ -17,10 +17,11 @@ export const AJUDA_CONTEUDO = {
   },
   despesas: {
     titulo: "Como funciona Despesas",
-    explicacao: "Aqui ficam seus gastos, separados em 'Pendentes' (ainda não pagos) e 'Histórico' (já pagos). Por padrão aparecem despesas de todos os meses, para nada ficar esquecido — use os botões de mês para filtrar um período. Uma despesa também pode ser parcelada direto por aqui.",
+    explicacao: "Aqui ficam todos os seus gastos, separados em 'Pendentes' (ainda não pagos) e 'Histórico' (já pagos), do mais recente para o mais antigo. As parcelas de um parcelamento aparecem nesta mesma lista. Por padrão aparecem despesas de todos os meses, para nada ficar esquecido — use os botões de mês para filtrar um período.",
     passos: [
-      "Clique em 'Nova' e preencha a descrição (ex: Almoço), o valor e a data de vencimento.",
-      "Se quiser dividir em várias vezes, mude o campo 'Parcelas' — informe o valor TOTAL e o app divide sozinho.",
+      "Clique em 'Nova' e preencha a descrição (ex: Almoço), o valor, a data de vencimento, a categoria e a forma de pagamento (Pix, cartão ou dinheiro).",
+      "Crie suas próprias categorias em '+ Categoria' (ex: Faculdade) e escolha uma cor; clique numa categoria para ver só os gastos dela.",
+      "Se quiser dividir em várias vezes, mude o campo 'Parcelas' — informe o valor TOTAL e o app divide sozinho. Para acompanhar o progresso parcela a parcela, use 'Parcelado'.",
       "Quando pagar uma despesa, clique no ícone de check (✓) para marcá-la como paga e ela vai para o Histórico.",
       "Use os botões de mês para ver só um período; 'Todos os meses' mostra tudo.",
     ],

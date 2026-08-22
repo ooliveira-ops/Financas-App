@@ -130,7 +130,7 @@ export default function Auth() {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/25 mb-5">
             <Wallet size={24} className="text-blue-400" />
           </div>
-          <h1 className="font-display text-3xl italic text-slate-100">Finanças Filipe</h1>
+          <h1 className="font-display text-3xl italic text-slate-100">Finanças</h1>
           <p className="font-body text-sm text-slate-400/60 mt-1">Controle financeiro pessoal</p>
         </div>
 

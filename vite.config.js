@@ -9,7 +9,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Finanças Filipe',
+        name: 'Finanças',
         short_name: 'Finanças',
         description: 'App pessoal de controle financeiro',
         theme_color: '#0a0a0f',

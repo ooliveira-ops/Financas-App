@@ -1,4 +1,4 @@
-# Finanças Filipe
+# Finanças · Controle Pessoal
 
 App de controle financeiro pessoal com receitas, despesas parceladas, categorias, assinaturas, gráficos e painel admin.
 
@@ -22,7 +22,7 @@ App de controle financeiro pessoal com receitas, despesas parceladas, categorias
 - **Botão de Dúvidas** — cada seção tem um botão de ajuda com explicação e passo a passo
 - **Painel Admin** — usuários, último login, permissões e publicação de novidades
 - **Sistema de novidades** — o admin publica atualizações pelo painel, sem tocar no código
-- **PWA** — instalável no celular e no desktop
+- **PWA** — sem loja de aplicativos: abre o site e usa "Adicionar à tela inicial" no celular ou "Instalar" no navegador do PC
 - **Design azul escuro** — Fraunces + JetBrains Mono + Inter
 
 ---
@@ -65,7 +65,7 @@ Toda a lógica de negócio roda no cliente; o Supabase é chamado direto do brow
 
 ## 🚀 Como criar a SUA versão
 
-São 10 passos, uns 20 minutos no total. Você precisa de: **Node 18+**, uma conta no
+São 11 passos, uns 20 minutos no total. Você precisa de: **Node 18+**, uma conta no
 **Supabase** (grátis) e — só para publicar na internet — uma conta na **Vercel** (grátis).
 
 | Etapa | Passos | O que você faz |
@@ -75,6 +75,7 @@ São 10 passos, uns 20 minutos no total. Você precisa de: **Node 18+**, uma con
 | Acesso | 5 – 7 | Gera os tokens de convite e vira admin |
 | Rodar | 8 – 9 | Configura as chaves e abre o app localmente |
 | Publicar | 10 | Sobe na Vercel com URL própria |
+| Instalar | 11 | Coloca o app na tela inicial do celular ou do PC |
 
 ---
 
@@ -83,8 +84,8 @@ São 10 passos, uns 20 minutos no total. Você precisa de: **Node 18+**, uma con
 #### 1️⃣ Clonar e instalar
 
 ```bash
-git clone https://github.com/ooliveira-ops/Financas-Filipe.git
-cd Financas-Filipe
+git clone https://github.com/ooliveira-ops/Financas-App.git
+cd Financas-App
 npm install
 ```
 
@@ -211,6 +212,38 @@ npm run dev
 O `vercel.json` também configura um **cron** que chama `/api/ping` a cada 3 dias, para o
 projeto Supabase não ser pausado por inatividade. Esse endpoint usa a função `ping()` do
 banco, então não depende de leitura anônima em nenhuma tabela de dados.
+
+---
+
+### 📱 Etapa 6 — Instalar como aplicativo
+
+Não existe app na Play Store nem na App Store: o projeto é um **PWA**. Você abre a URL
+que a Vercel te deu e instala direto do navegador — o ícone vai pra tela inicial e o app
+abre em tela cheia, sem barra de endereço.
+
+#### 1️⃣1️⃣ Instalar no celular
+
+**Android (Chrome)**
+
+1. Abra o seu site no Chrome
+2. Toque no menu **⋮** (canto superior direito)
+3. Toque em **Adicionar à tela inicial** → **Instalar**
+
+**iPhone / iPad (Safari)**
+
+1. Abra o seu site no **Safari** — no iOS só funciona pelo Safari
+2. Toque no botão de compartilhar **⬆️** (barra de baixo)
+3. Role e toque em **Adicionar à Tela de Início** → **Adicionar**
+
+**Deu certo se:** o ícone apareceu na tela inicial e, ao abrir, o app ocupa a tela toda.
+
+#### 💻 No computador
+
+No Chrome ou no Edge, abra o site e clique no ícone de **instalar** (⊕ ou o monitor com
+seta, do lado direito da barra de endereço) — ou **menu ⋮ → Instalar**. O app ganha
+janela e atalho próprios, como um programa qualquer.
+
+Se preferir, não instale nada: usar pelo navegador mesmo funciona igual, é o mesmo app.
 
 ---
 

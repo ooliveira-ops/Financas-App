@@ -7,7 +7,7 @@ import {
 import { supabase } from "./supabase";
 import Auth from "./Auth";
 import { BotaoAjuda } from "./Ajuda";
-import { ModalBase, ModalConfirmar, inputCls, btnPrimary } from "./ModalBase";
+import { ModalBase, ModalConfirmar, inputCls, selectCls, btnPrimary } from "./ModalBase";
 import {
   formatBRL, hojeISO, mesAtual, somarMeses, nomeMes,
   formatarDataBR, formatarDataHora, dividirEmParcelas, mesclarPorId,
@@ -44,6 +44,14 @@ const QUOTES = [
 ];
 
 // Novidades são gerenciadas pelo painel admin — sem editar código!
+
+// O valor gravado em `despesas.forma_pagamento` é o `id`; o rótulo é só de exibição.
+const FORMAS_PAGAMENTO = [
+  { id: "pix", label: "Pix" },
+  { id: "cartao", label: "Cartão" },
+  { id: "dinheiro", label: "Dinheiro" },
+];
+const rotuloForma = (id) => FORMAS_PAGAMENTO.find(f => f.id === id)?.label || null;
 
 const CATEGORIAS_PADRAO = [
   { nome: "Faculdade", cor: "#60a5fa", icone: "GraduationCap" },
@@ -224,12 +232,14 @@ function AppLogado({ session }) {
   });
 
   const adicionarDespesa = async (n) => {
-    const { parcelas, dataVencimento, valor, ...resto } = n;
+    const { parcelas, dataVencimento, valor, categoria_id, forma_pagamento, ...resto } = n;
+    // Select vazio devolve string, e coluna UUID/CHECK não aceita "" — vira NULL.
+    const vinculos = { categoria_id: categoria_id || null, forma_pagamento: forma_pagamento || null };
     // `valor` é o total da compra; a divisão em centavos exatos é feita aqui.
     const lista = dividirEmParcelas(valor, parcelas).map((valorParcela, i) => {
       const dataStr = somarMeses(dataVencimento, i);
       return {
-        ...resto, valor: valorParcela, user_id: userId, data: dataStr, data_vencimento: dataStr,
+        ...resto, ...vinculos, valor: valorParcela, user_id: userId, data: dataStr, data_vencimento: dataStr,
         status: "pendente",
         parcela_atual: parcelas > 1 ? i + 1 : null,
         parcelas_total: parcelas > 1 ? parcelas : null,
@@ -275,13 +285,14 @@ function AppLogado({ session }) {
   const adicionarParcelamento = async (n) => {
     if (!n.descricao || !n.valor_total || !n.parcelas_total) return notificar("Preencha todos os campos");
     const parcelasTotal = parseInt(n.parcelas_total);
-    const { data, error } = await supabase.from("parcelamentos").insert({ descricao: n.descricao, valor_total: parseFloat(n.valor_total), parcelas_total: parcelasTotal, parcelas_pagas: 0, valor_pago: 0, user_id: userId, proxima_parcela_data: n.dataInicio, categoria_id: null, status: "ativo" }).select().single();
+    const { data, error } = await supabase.from("parcelamentos").insert({ descricao: n.descricao, valor_total: parseFloat(n.valor_total), parcelas_total: parcelasTotal, parcelas_pagas: 0, valor_pago: 0, user_id: userId, proxima_parcela_data: n.dataInicio, categoria_id: n.categoria_id || null, status: "ativo" }).select().single();
     if (error) return notificar("Não foi possível salvar o parcelamento: " + error.message);
     if (data) setParcelamentos(prev => [...prev, data]);
     await adicionarDespesa({
       descricao: n.descricao,
       valor: parseFloat(n.valor_total),
-      categoria_id: null,
+      categoria_id: n.categoria_id,
+      forma_pagamento: n.forma_pagamento,
       dataVencimento: n.dataInicio,
       parcelas: parcelasTotal,
     });
@@ -385,11 +396,11 @@ function AppLogado({ session }) {
   const abas = [
     { id: "home", label: "Início", icon: Home },
     { id: "despesas", label: "Despesas", icon: PieIcon },
-    { id: "grafico", label: "Gráfico", icon: BarChart2 },
     { id: "historico", label: "Histórico", icon: History },
     { id: "parcelamentos", label: "Parcelamentos", icon: Zap },
     { id: "receitas", label: "Receitas", icon: Wallet },
     { id: "assinaturas", label: "Assinaturas", icon: Repeat },
+    { id: "grafico", label: "Gráfico", icon: BarChart2 },
     ...(isAdmin ? [{ id: "usuarios", label: "Usuários", icon: Shield }] : []),
   ];
 
@@ -505,7 +516,7 @@ function AppLogado({ session }) {
 
       <main className="relative z-10 px-6 md:px-12 py-8 max-w-6xl mx-auto">
         {aba === "home" && <HomeAba quote={quote} saldo={saldo} temReceitaNoMes={temReceitaNoMes} totalReceitasMes={totalReceitasMes} totalDespesasMes={totalDespesasMes} totalPendentesGeral={totalPendentesGeral} proximasAssinaturas={proximasAssinaturas} receitas={receitas} despesas={despesas} assinaturas={assinaturas} parcelamentos={parcelamentos} userNome={userNome} onAviso={notificar}/>}
-        {aba === "despesas" && <DespesasAba despesasPendentes={despesasPendentes} despesasPagas={despesasPagas} categorias={categorias} onAdicionar={() => setModalDespesa(true)} onRemover={removerDespesa} onMarcarPaga={marcarComoPaga}/>}
+        {aba === "despesas" && <DespesasAba despesasPendentes={despesasPendentes} despesasPagas={despesasPagas} categorias={categorias} onAdicionar={() => setModalDespesa(true)} onAdicionarParcelamento={() => setModalParcelamento(true)} onNovaCategoria={() => setModalCategoria(true)} onRemoverCategoria={removerCategoria} onRemover={removerDespesa} onMarcarPaga={marcarComoPaga}/>}
         {aba === "grafico" && (
           <Suspense fallback={<div className="py-24 flex justify-center"><Loader2 className="text-blue-400/60 animate-spin" size={24}/></div>}>
             <GraficoAba despesas={despesas} receitas={receitas} assinaturas={assinaturas}/>
@@ -739,7 +750,7 @@ function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome
       setMesSelecionado(mesesComDespesas[0]);
     }
   }, [mesesComDespesas, mesSelecionado]);
-  const despesasDomes = useMemo(() => despesas.filter(d => { if (d.status === "paga") return d.data_pagamento?.startsWith(mesSelecionado); return (d.data_vencimento || d.data)?.startsWith(mesSelecionado); }).sort((a,b) => (a.data_vencimento||a.data||"").localeCompare(b.data_vencimento||b.data||"")), [despesas, mesSelecionado]);
+  const despesasDomes = useMemo(() => despesas.filter(d => { if (d.status === "paga") return d.data_pagamento?.startsWith(mesSelecionado); return (d.data_vencimento || d.data)?.startsWith(mesSelecionado); }).sort((a,b) => (b.data_vencimento||b.data||"").localeCompare(a.data_vencimento||a.data||"")), [despesas, mesSelecionado]);
   const totalPago = useMemo(() => despesasDomes.filter(d => d.status === "paga").reduce((s,d) => s + parseFloat(d.valor||0), 0), [despesasDomes]);
   const totalPendente = useMemo(() => despesasDomes.filter(d => d.status !== "paga").reduce((s,d) => s + parseFloat(d.valor||0), 0), [despesasDomes]);
 
@@ -883,11 +894,14 @@ function CardSaldo({ saldo, temReceita, delay }) {
 }
 
 // ── DESPESAS ──────────────────────────────────────────────────────────────────────
-function DespesasAba({ despesasPendentes, despesasPagas, categorias, onAdicionar, onRemover, onMarcarPaga }) {
+function DespesasAba({ despesasPendentes, despesasPagas, categorias, onAdicionar, onAdicionarParcelamento, onNovaCategoria, onRemoverCategoria, onRemover, onMarcarPaga }) {
   const [subAba, setSubAba] = useState("pendentes");
   // "todos" mostra despesas de qualquer mês (inclusive as que ficaram para trás).
   // Selecionando um mês específico, filtra só aquele período.
   const [mesFiltro, setMesFiltro] = useState("todos");
+  const [categoriaFiltro, setCategoriaFiltro] = useState("todas");
+  const nomeCategoria = (id) => categorias.find(c => c.id === id)?.nome;
+  const corCategoria = (id) => categorias.find(c => c.id === id)?.cor || "#60a5fa";
 
   // Lista de meses que têm alguma despesa (pendente ou paga), do mais recente pro mais antigo
   const mesesDisponiveis = useMemo(() => {
@@ -899,12 +913,15 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, onAdicionar
 
   const listaBase = subAba === "pendentes" ? despesasPendentes : despesasPagas;
   const lista = useMemo(() => {
-    if (mesFiltro === "todos") return listaBase;
     return listaBase.filter(d => {
+      const casaCategoria = categoriaFiltro === "todas"
+        || (categoriaFiltro === "sem" ? !d.categoria_id : d.categoria_id === categoriaFiltro);
+      if (!casaCategoria) return false;
+      if (mesFiltro === "todos") return true;
       const ref = subAba === "pendentes" ? (d.data_vencimento || d.data) : d.data_pagamento;
       return ref && ref.startsWith(mesFiltro);
     });
-  }, [listaBase, mesFiltro, subAba]);
+  }, [listaBase, mesFiltro, categoriaFiltro, subAba]);
 
   const total = useMemo(() => lista.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [lista]);
 
@@ -920,7 +937,10 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, onAdicionar
             <h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{formatBRL(total)}</h2>
           </div>
         </div>
-        <button onClick={onAdicionar} className="px-4 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-body text-sm flex items-center gap-2 transition-all"><Plus size={14}/>Nova</button>
+        <div className="flex gap-2">
+          <button onClick={onAdicionarParcelamento} className="px-4 py-2.5 rounded-full bg-white/5 border border-blue-900/30 text-slate-300 hover:bg-white/10 font-body text-sm flex items-center gap-2 transition-all"><Zap size={14}/>Parcelado</button>
+          <button onClick={onAdicionar} className="px-4 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-body text-sm flex items-center gap-2 transition-all"><Plus size={14}/>Nova</button>
+        </div>
       </div>
 
       <div className="flex gap-1 bg-white/[0.03] p-1 rounded-full w-fit border border-blue-900/30">
@@ -935,12 +955,34 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, onAdicionar
         ))}
       </div>
 
+      <div className="flex gap-2 flex-wrap items-center">
+        <span className="font-mono-c text-[10px] text-slate-400/50 uppercase mr-1">Categorias</span>
+        <button onClick={()=>setCategoriaFiltro("todas")} className={`px-3 py-1.5 rounded-full font-body text-xs transition-all ${categoriaFiltro==="todas"?"bg-blue-600 text-white":"bg-white/5 text-slate-300 hover:bg-white/10 border border-blue-900/30"}`}>Todas</button>
+        {categorias.map(c => (
+          <span key={c.id} className={`group inline-flex items-center rounded-full transition-all ${categoriaFiltro===c.id?"bg-blue-600":"bg-white/5 border border-blue-900/30"}`}>
+            <button onClick={()=>setCategoriaFiltro(c.id)} className={`pl-3 pr-2 py-1.5 font-body text-xs flex items-center gap-2 ${categoriaFiltro===c.id?"text-white":"text-slate-300"}`}>
+              <span className="w-2 h-2 rounded-full" style={{background:c.cor}}/>{c.nome}
+            </button>
+            <button onClick={()=>onRemoverCategoria(c.id)} className="pr-2.5 text-slate-400/0 group-hover:text-slate-400/60 hover:!text-red-400 transition-colors"><X size={11}/></button>
+          </span>
+        ))}
+        <button onClick={()=>setCategoriaFiltro("sem")} className={`px-3 py-1.5 rounded-full font-body text-xs transition-all ${categoriaFiltro==="sem"?"bg-blue-600 text-white":"bg-white/5 text-slate-400/70 hover:bg-white/10 border border-blue-900/30"}`}>Sem categoria</button>
+        <button onClick={onNovaCategoria} className="px-3 py-1.5 rounded-full font-body text-xs bg-blue-600/15 border border-blue-500/30 text-blue-300 hover:bg-blue-600/25 transition-all flex items-center gap-1"><Plus size={11}/>Categoria</button>
+      </div>
+
       <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl">
         {lista.length===0?<div className="p-12 text-center"><p className="font-body text-slate-400/40">{subAba==="pendentes"?"Sem despesas pendentes ✨":"Sem histórico"}</p></div>:(
           <div className="divide-y divide-blue-900/20">
-            {[...lista].sort((a,b)=>(a.data_vencimento||a.data||"").localeCompare(b.data_vencimento||b.data||"")).map(d=>(
+            {[...lista].sort((a,b)=>(b.data_vencimento||b.data||"").localeCompare(a.data_vencimento||a.data||"")).map(d=>(
               <div key={d.id} className="flex items-center gap-3 p-4 hover:bg-white/[0.02] group">
-                <div className="flex-1"><div className="font-body text-slate-200">{d.descricao}{rotuloParcela(d)}</div><div className="font-mono-c text-[10px] text-slate-400/50">{formatarDataBR(d.data_vencimento||d.data)}</div></div>
+                <div className="flex-1">
+                  <div className="font-body text-slate-200">{d.descricao}{rotuloParcela(d)}</div>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    <span className="font-mono-c text-[10px] text-slate-400/50">{formatarDataBR(d.data_vencimento||d.data)}</span>
+                    {nomeCategoria(d.categoria_id) && <span className="font-body text-[10px] px-2 py-0.5 rounded-full border" style={{color:corCategoria(d.categoria_id),borderColor:corCategoria(d.categoria_id)+"55",background:corCategoria(d.categoria_id)+"14"}}>{nomeCategoria(d.categoria_id)}</span>}
+                    {rotuloForma(d.forma_pagamento) && <span className="font-body text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-blue-900/30 text-slate-400/70">{rotuloForma(d.forma_pagamento)}</span>}
+                  </div>
+                </div>
                 <div className="font-mono-c num-tabular text-slate-300">{formatBRL(d.valor)}</div>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   {subAba==="pendentes"&&<button onClick={()=>onMarcarPaga(d.id)} className="p-1 text-emerald-400/70 hover:text-emerald-400"><Check size={14}/></button>}
@@ -1042,13 +1084,14 @@ function ModalReceita({ onFechar, onSalvar }) {
 }
 
 function ModalDespesa({ categorias, onFechar, onSalvar }) {
-  const [descricao,setDescricao]=useState(""); const [valor,setValor]=useState(""); const [categoriaId,setCategoriaId]=useState(categorias[0]?.id||"");
+  const [descricao,setDescricao]=useState(""); const [valor,setValor]=useState(""); const [categoriaId,setCategoriaId]=useState("");
+  const [formaPagamento,setFormaPagamento]=useState("pix");
   const [dataVencimento,setDataVencimento]=useState(hojeISO()); const [parcelas,setParcelas]=useState(1); const [salvando,setSalvando]=useState(false);
   // O campo é o valor total da compra; quem divide é adicionarDespesa.
   const valoresParcelas=dividirEmParcelas(valor,Math.max(1,parcelas));
   const valorParcela=valoresParcelas[0]; const ultimaParcela=valoresParcelas[valoresParcelas.length-1];
-  const submit=async()=>{if(!descricao||!valor)return;setSalvando(true);await onSalvar({descricao,valor:parseFloat(valor),categoria_id:categoriaId,dataVencimento,parcelas});};
-  return <ModalBase titulo="Nova despesa" onFechar={onFechar}><input type="text" value={descricao} onChange={e=>setDescricao(e.target.value)} placeholder="Ex: Almoço" className={inputCls}/><div className="grid grid-cols-2 gap-3"><input type="number" step="0.01" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0,00" className={inputCls}/><input type="date" value={dataVencimento} onChange={e=>setDataVencimento(e.target.value)} className={inputCls}/></div><input type="number" min="1" max="60" value={parcelas} onChange={e=>setParcelas(Math.max(1,parseInt(e.target.value)||1))} placeholder="Parcelas" className={inputCls}/>{parcelas>1&&<p className="font-mono-c text-xs text-sky-400">{parcelas}x de {formatBRL(valorParcela)}{ultimaParcela!==valorParcela?` (última: ${formatBRL(ultimaParcela)})`:""}</p>}<button onClick={submit} disabled={salvando} className={btnPrimary}>{salvando?"Salvando...":"Salvar"}</button></ModalBase>;
+  const submit=async()=>{if(!descricao||!valor)return;setSalvando(true);await onSalvar({descricao,valor:parseFloat(valor),categoria_id:categoriaId,forma_pagamento:formaPagamento,dataVencimento,parcelas});};
+  return <ModalBase titulo="Nova despesa" onFechar={onFechar}><input type="text" value={descricao} onChange={e=>setDescricao(e.target.value)} placeholder="Ex: Almoço" className={inputCls}/><div className="grid grid-cols-2 gap-3"><input type="number" step="0.01" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0,00" className={inputCls}/><input type="date" value={dataVencimento} onChange={e=>setDataVencimento(e.target.value)} className={inputCls}/></div><div className="grid grid-cols-2 gap-3"><select value={categoriaId} onChange={e=>setCategoriaId(e.target.value)} className={selectCls}><option value="">Sem categoria</option>{categorias.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select><select value={formaPagamento} onChange={e=>setFormaPagamento(e.target.value)} className={selectCls}>{FORMAS_PAGAMENTO.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select></div><input type="number" min="1" max="60" value={parcelas} onChange={e=>setParcelas(Math.max(1,parseInt(e.target.value)||1))} placeholder="Parcelas" className={inputCls}/>{parcelas>1&&<p className="font-mono-c text-xs text-sky-400">{parcelas}x de {formatBRL(valorParcela)}{ultimaParcela!==valorParcela?` (última: ${formatBRL(ultimaParcela)})`:""}</p>}<button onClick={submit} disabled={salvando} className={btnPrimary}>{salvando?"Salvando...":"Salvar"}</button></ModalBase>;
 }
 
 function ModalAssinatura({ onFechar, onSalvar }) {
@@ -1059,12 +1102,15 @@ function ModalAssinatura({ onFechar, onSalvar }) {
 
 function ModalParcelamento({ categorias, onFechar, onSalvar }) {
   const [descricao,setDescricao]=useState(""); const [valorTotal,setValorTotal]=useState(""); const [parcelas,setParcelas]=useState(3); const [dataInicio,setDataInicio]=useState(hojeISO()); const [salvando,setSalvando]=useState(false);
-  const submit=async()=>{if(!descricao||!valorTotal)return;setSalvando(true);await onSalvar({descricao,valor_total:parseFloat(valorTotal),parcelas_total:parseInt(parcelas),dataInicio});};
-  return <ModalBase titulo="Novo parcelamento" onFechar={onFechar}><input type="text" value={descricao} onChange={e=>setDescricao(e.target.value)} placeholder="Ex: Monitor" className={inputCls}/><input type="number" step="0.01" value={valorTotal} onChange={e=>setValorTotal(e.target.value)} placeholder="Valor total" className={inputCls}/><input type="number" min="2" value={parcelas} onChange={e=>setParcelas(parseInt(e.target.value)||2)} placeholder="Nº de parcelas" className={inputCls}/><input type="date" value={dataInicio} onChange={e=>setDataInicio(e.target.value)} className={inputCls}/><button onClick={submit} disabled={salvando} className={btnPrimary}>{salvando?"Salvando...":"Salvar"}</button></ModalBase>;
+  const [categoriaId,setCategoriaId]=useState(""); const [formaPagamento,setFormaPagamento]=useState("cartao");
+  const submit=async()=>{if(!descricao||!valorTotal)return;setSalvando(true);await onSalvar({descricao,valor_total:parseFloat(valorTotal),parcelas_total:parseInt(parcelas),categoria_id:categoriaId,forma_pagamento:formaPagamento,dataInicio});};
+  return <ModalBase titulo="Novo parcelamento" onFechar={onFechar}><input type="text" value={descricao} onChange={e=>setDescricao(e.target.value)} placeholder="Ex: Monitor" className={inputCls}/><input type="number" step="0.01" value={valorTotal} onChange={e=>setValorTotal(e.target.value)} placeholder="Valor total" className={inputCls}/><input type="number" min="2" value={parcelas} onChange={e=>setParcelas(parseInt(e.target.value)||2)} placeholder="Nº de parcelas" className={inputCls}/><input type="date" value={dataInicio} onChange={e=>setDataInicio(e.target.value)} className={inputCls}/><div className="grid grid-cols-2 gap-3"><select value={categoriaId} onChange={e=>setCategoriaId(e.target.value)} className={selectCls}><option value="">Sem categoria</option>{categorias.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select><select value={formaPagamento} onChange={e=>setFormaPagamento(e.target.value)} className={selectCls}>{FORMAS_PAGAMENTO.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}</select></div><button onClick={submit} disabled={salvando} className={btnPrimary}>{salvando?"Salvando...":"Salvar"}</button></ModalBase>;
 }
 
+const CORES_CATEGORIA = ["#60a5fa", "#34d399", "#a78bfa", "#38bdf8", "#6ee7b7", "#fbbf24", "#f87171", "#f472b6"];
+
 function ModalCategoria({ onFechar, onSalvar }) {
-  const [nome,setNome]=useState(""); const [salvando,setSalvando]=useState(false);
-  const submit=async()=>{if(!nome)return;setSalvando(true);await onSalvar({nome,cor:"#60a5fa",icone:"Tag"});};
-  return <ModalBase titulo="Nova categoria" onFechar={onFechar}><input type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="Nome da categoria" className={inputCls}/><button onClick={submit} disabled={salvando} className={btnPrimary}>{salvando?"Salvando...":"Salvar"}</button></ModalBase>;
+  const [nome,setNome]=useState(""); const [cor,setCor]=useState(CORES_CATEGORIA[0]); const [salvando,setSalvando]=useState(false);
+  const submit=async()=>{if(!nome)return;setSalvando(true);await onSalvar({nome,cor,icone:"Tag"});};
+  return <ModalBase titulo="Nova categoria" onFechar={onFechar}><input type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="Ex: Faculdade" className={inputCls}/><div className="flex gap-2 flex-wrap">{CORES_CATEGORIA.map(c=>(<button key={c} onClick={()=>setCor(c)} className={`w-8 h-8 rounded-full transition-all ${cor===c?"ring-2 ring-offset-2 ring-offset-[#0d1829] ring-white/70":""}`} style={{background:c}}/>))}</div><button onClick={submit} disabled={salvando} className={btnPrimary}>{salvando?"Salvando...":"Salvar"}</button></ModalBase>;
 }

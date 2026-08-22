@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS despesas (
   data_vencimento DATE,
   data_pagamento DATE,
   status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'paga')),
+  forma_pagamento TEXT CHECK (forma_pagamento IN ('pix', 'cartao', 'dinheiro')),  -- NULL quando não informada
   parcela_atual INTEGER,                    -- NULL quando não é parcelada
   parcelas_total INTEGER,                   -- NULL quando não é parcelada
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -103,6 +104,17 @@ CREATE TABLE IF NOT EXISTS codigos_acesso (
   usado_em TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ============================================
+-- MIGRAÇÕES
+-- CREATE TABLE IF NOT EXISTS vira no-op numa tabela que já existe: coluna nova
+-- declarada acima não é aplicada num banco antigo. Estes ALTER alinham o schema.
+-- ============================================
+
+ALTER TABLE despesas ADD COLUMN IF NOT EXISTS forma_pagamento TEXT;
+ALTER TABLE despesas DROP CONSTRAINT IF EXISTS despesas_forma_pagamento_check;
+ALTER TABLE despesas ADD CONSTRAINT despesas_forma_pagamento_check
+  CHECK (forma_pagamento IN ('pix', 'cartao', 'dinheiro'));
 
 -- ============================================
 -- ÍNDICES

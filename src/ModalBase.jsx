@@ -2,6 +2,8 @@ import React from "react";
 import { X, AlertTriangle } from "lucide-react";
 
 export const inputCls = "w-full bg-white/[0.03] border border-blue-900/40 rounded-xl px-4 py-3 text-slate-100 placeholder:text-slate-400/40 focus:outline-none focus:border-blue-500/50 transition-colors";
+// O `bg` das <option> é herdado do sistema em alguns navegadores; o [&>option] força o tema escuro.
+export const selectCls = inputCls + " appearance-none cursor-pointer [&>option]:bg-[#0d1829] [&>option]:text-slate-100";
 export const btnPrimary = "w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-body font-medium transition-all";
 
 export function ModalBase({ titulo, onFechar, children }) {

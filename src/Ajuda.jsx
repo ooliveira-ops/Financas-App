@@ -6,10 +6,11 @@ import { ModalBase } from "./ModalBase";
 export const AJUDA_CONTEUDO = {
   home: {
     titulo: "Como funciona a Home",
-    explicacao: "A Home mostra um resumo geral: quanto entrou no mês (receitas), quanto já foi pago no mês, quanto ainda falta pagar somando todos os meses, e o saldo acumulado de toda a sua história. Também mostra suas próximas assinaturas e permite gerar um relatório em PDF.",
+    explicacao: "A Home mostra um resumo geral: quanto entrou no mês (receitas), quanto já foi pago no mês, o saldo do mês, quanto ainda falta pagar somando todos os meses, e o saldo acumulado de toda a sua história. Também mostra suas próximas assinaturas e permite gerar um relatório em PDF.",
     passos: [
       "Cadastre suas receitas do mês na aba Receitas para o saldo aparecer aqui.",
       "Conforme você marca despesas como pagas, os cards 'Pago' e 'A pagar' vão se atualizando sozinhos.",
+      "O 'Saldo do mês' é só do mês corrente: receitas deste mês menos as despesas pagas neste mês, sem contar o que sobrou de antes.",
       "O 'Saldo acumulado' considera tudo desde o começo: o que sobrou de um mês passa automaticamente para o mês seguinte.",
       "Clique em 'Gerar Relatório do Mês' quando quiser baixar um PDF com tudo o que aconteceu no mês.",
     ],

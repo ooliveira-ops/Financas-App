@@ -374,6 +374,10 @@ function AppLogado({ session }) {
   // não por `valor_pago` — somar os dois descontaria o mesmo dinheiro duas vezes.
   const temReceitaNoMes = totalReceitasGeral > 0;
   const saldo = temReceitaNoMes ? totalReceitasGeral - totalDespesasPagasGeral : null;
+  // SALDO DO MÊS: só o que entrou e o que foi pago dentro do mês corrente, sem herdar
+  // o que sobrou dos meses anteriores. Serve para acompanhar o mês em andamento.
+  const temMovimentoNoMes = totalReceitasMes > 0 || totalDespesasPagasMes > 0;
+  const saldoMes = temMovimentoNoMes ? totalReceitasMes - totalDespesasPagasMes : null;
   // "A PAGAR" GERAL: soma TODAS as despesas pendentes, de qualquer mês (não só do mês atual),
   // para nada "desaparecer" quando o mês virar. Na aba Despesas dá pra filtrar por mês específico.
   const totalPendentesGeral = useMemo(() => despesasPendentes.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPendentes]);
@@ -504,7 +508,7 @@ function AppLogado({ session }) {
       </nav>
 
       <main className="relative z-10 px-6 md:px-12 py-8 max-w-6xl mx-auto">
-        {aba === "home" && <HomeAba quote={quote} saldo={saldo} temReceitaNoMes={temReceitaNoMes} totalReceitasMes={totalReceitasMes} totalDespesasMes={totalDespesasMes} totalPendentesGeral={totalPendentesGeral} proximasAssinaturas={proximasAssinaturas} receitas={receitas} despesas={despesas} assinaturas={assinaturas} parcelamentos={parcelamentos} userNome={userNome} onAviso={notificar}/>}
+        {aba === "home" && <HomeAba quote={quote} saldo={saldo} temReceitaNoMes={temReceitaNoMes} saldoMes={saldoMes} temMovimentoNoMes={temMovimentoNoMes} totalReceitasMes={totalReceitasMes} totalDespesasMes={totalDespesasMes} totalPendentesGeral={totalPendentesGeral} proximasAssinaturas={proximasAssinaturas} receitas={receitas} despesas={despesas} assinaturas={assinaturas} parcelamentos={parcelamentos} userNome={userNome} onAviso={notificar}/>}
         {aba === "despesas" && <DespesasAba despesasPendentes={despesasPendentes} despesasPagas={despesasPagas} categorias={categorias} onAdicionar={() => setModalDespesa(true)} onRemover={removerDespesa} onMarcarPaga={marcarComoPaga}/>}
         {aba === "grafico" && (
           <Suspense fallback={<div className="py-24 flex justify-center"><Loader2 className="text-blue-400/60 animate-spin" size={24}/></div>}>
@@ -794,7 +798,7 @@ function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome
 }
 
 // ── HOME ─────────────────────────────────────────────────────────────────────────
-function HomeAba({ quote, saldo, temReceitaNoMes, totalReceitasMes, totalDespesasMes, totalPendentesGeral, proximasAssinaturas, receitas, despesas, assinaturas, parcelamentos, userNome, onAviso }) {
+function HomeAba({ quote, saldo, temReceitaNoMes, saldoMes, temMovimentoNoMes, totalReceitasMes, totalDespesasMes, totalPendentesGeral, proximasAssinaturas, receitas, despesas, assinaturas, parcelamentos, userNome, onAviso }) {
   const despesasPagasCount = despesas.filter(d => d.status === "paga").length;
   const parcelamentosAtivos = parcelamentos.filter(p => p.status === "ativo").length;
   const receitasMes = receitas.filter(r => (r.mes || mesAtual()) === mesAtual()).length;
@@ -813,6 +817,7 @@ function HomeAba({ quote, saldo, temReceitaNoMes, totalReceitasMes, totalDespesa
       autoTable(doc, {startY:y, head:[["Item","Valor"]], body:[
         [`Receitas (${mesRef})`, formatBRL(totalReceitasMes)],
         [`Despesas pagas (${mesRef})`, formatBRL(totalDespesasMes)],
+        [`Saldo do mês (${mesRef})`, temMovimentoNoMes?formatBRL(saldoMes):"Sem movimento no mês"],
         [`A pagar (${mesRef})`, formatBRL(totalPendentesDoMes)],
         ["A pagar (todos os meses)", formatBRL(totalPendentesGeral)],
         ["Saldo acumulado (todo o histórico)", temReceitaNoMes?formatBRL(saldo):"Sem receita cadastrada"],
@@ -831,12 +836,13 @@ function HomeAba({ quote, saldo, temReceitaNoMes, totalReceitasMes, totalDespesa
         <p className="font-display text-3xl italic leading-tight text-slate-100">"{quote.text}"</p>
         {quote.author && <p className="font-body text-sm text-slate-400/70 mt-3">— {quote.author}</p>}
       </section>
-      {/* Escopos diferentes no mesmo grid: dois cards são do mês, dois são acumulados. */}
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Escopos diferentes no mesmo grid: os três primeiros são do mês, os dois últimos são acumulados. */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <CardResumo label="Receitas" escopo="este mês" valor={totalReceitasMes} icon={TrendingUp} cor="text-emerald-400" delay={2}/>
         <CardResumo label="Pago" escopo="este mês" valor={totalDespesasMes} icon={CheckCircle2} cor="text-red-400" delay={3}/>
-        <CardResumo label="A pagar" escopo="todos os meses" valor={totalPendentesGeral} icon={Clock} cor="text-sky-400" delay={3}/>
-        <CardSaldo saldo={saldo} temReceita={temReceitaNoMes} delay={4}/>
+        <CardSaldo label="Saldo do mês" escopo="receitas − despesas pagas deste mês" saldo={saldoMes} temReceita={temMovimentoNoMes} delay={3}/>
+        <CardResumo label="A pagar" escopo="todos os meses" valor={totalPendentesGeral} icon={Clock} cor="text-sky-400" delay={4}/>
+        <CardSaldo label="Saldo acumulado" escopo="receitas − despesas pagas, todo o histórico" saldo={saldo} temReceita={temReceitaNoMes} delay={4}/>
       </section>
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="animate-fadeInUp delay-5 bg-[#0d1829] border border-blue-900/30 rounded-2xl p-6 space-y-4">
@@ -872,12 +878,12 @@ function CardResumo({ label, escopo, valor, icon: Icon, cor, delay }) {
     </div>
   );
 }
-function CardSaldo({ saldo, temReceita, delay }) {
+function CardSaldo({ label, escopo, saldo, temReceita, delay }) {
   return (
     <div className={`animate-fadeInUp delay-${delay} rounded-2xl p-6 border bg-[#0d1829] border-blue-500/30`}>
-      <div className="flex items-center justify-between mb-3"><span className="font-mono-c text-[10px] text-slate-400/50 uppercase">Saldo acumulado</span><Wallet size={16} className="text-blue-400"/></div>
+      <div className="flex items-center justify-between mb-3"><span className="font-mono-c text-[10px] text-slate-400/50 uppercase">{label}</span><Wallet size={16} className="text-blue-400"/></div>
       {temReceita?<div className={`font-mono-c num-tabular text-2xl font-bold not-italic ${saldo>=0?"text-emerald-400":"text-red-400"}`}>{formatBRL(saldo)}</div>:<div className="font-mono-c text-xl font-bold text-slate-400/40">—</div>}
-      <p className="font-body text-[10px] text-slate-400/40 mt-1">{temReceita ? "receitas − despesas pagas, todo o histórico" : "Cadastre receitas"}</p>
+      <p className="font-body text-[10px] text-slate-400/40 mt-1">{temReceita ? escopo : "Cadastre receitas"}</p>
     </div>
   );
 }

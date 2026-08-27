@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS despesas (
   forma_pagamento TEXT CHECK (forma_pagamento IN ('pix', 'cartao', 'dinheiro')),  -- NULL quando não informada
   parcela_atual INTEGER,                    -- NULL quando não é parcelada
   parcelas_total INTEGER,                   -- NULL quando não é parcelada
+  parcelamento_id UUID,                     -- FK criada nas MIGRAÇÕES, depois de `parcelamentos` existir
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -116,6 +117,48 @@ ALTER TABLE despesas DROP CONSTRAINT IF EXISTS despesas_forma_pagamento_check;
 ALTER TABLE despesas ADD CONSTRAINT despesas_forma_pagamento_check
   CHECK (forma_pagamento IN ('pix', 'cartao', 'dinheiro'));
 
+-- Liga cada parcela ao parcelamento que a originou. Sem esse vínculo as duas tabelas
+-- descrevem o mesmo desembolso sem forma de reconciliar, e o progresso exibido em
+-- `parcelamentos` passa a depender de o usuário marcar a mesma parcela nas duas telas.
+-- Apagar o parcelamento não apaga o gasto: a despesa fica, só perde a referência.
+ALTER TABLE despesas ADD COLUMN IF NOT EXISTS parcelamento_id UUID;
+ALTER TABLE despesas DROP CONSTRAINT IF EXISTS despesas_parcelamento_id_fkey;
+ALTER TABLE despesas ADD CONSTRAINT despesas_parcelamento_id_fkey
+  FOREIGN KEY (parcelamento_id) REFERENCES parcelamentos(id) ON DELETE SET NULL;
+
+-- Vincula o que foi criado antes da coluna existir. Descrição não é chave, então só
+-- casa quando a combinação identifica um único parcelamento do mesmo usuário.
+UPDATE despesas d
+SET parcelamento_id = p.id
+FROM parcelamentos p
+WHERE d.parcelamento_id IS NULL
+  AND d.parcelas_total IS NOT NULL
+  AND p.user_id = d.user_id
+  AND p.descricao = d.descricao
+  AND p.parcelas_total = d.parcelas_total
+  AND (SELECT COUNT(*) FROM parcelamentos p2
+        WHERE p2.user_id = d.user_id
+          AND p2.descricao = d.descricao
+          AND p2.parcelas_total = d.parcelas_total) = 1;
+
+-- Progresso é sempre derivado das despesas, nunca incrementado por contador próprio.
+WITH progresso AS (
+  SELECT parcelamento_id AS id,
+         COUNT(*) FILTER (WHERE status = 'paga') AS pagas,
+         COALESCE(SUM(valor) FILTER (WHERE status = 'paga'), 0) AS valor_pago,
+         MIN(COALESCE(data_vencimento, data)) FILTER (WHERE status <> 'paga') AS proxima
+  FROM despesas
+  WHERE parcelamento_id IS NOT NULL
+  GROUP BY parcelamento_id
+)
+UPDATE parcelamentos p
+SET parcelas_pagas = progresso.pagas,
+    valor_pago = progresso.valor_pago,
+    proxima_parcela_data = COALESCE(progresso.proxima, p.proxima_parcela_data),
+    status = CASE WHEN progresso.pagas >= p.parcelas_total THEN 'finalizado' ELSE 'ativo' END
+FROM progresso
+WHERE progresso.id = p.id;
+
 -- ============================================
 -- ÍNDICES
 -- ============================================
@@ -129,6 +172,7 @@ CREATE INDEX IF NOT EXISTS idx_receitas_user ON receitas(user_id);
 CREATE INDEX IF NOT EXISTS idx_despesas_user ON despesas(user_id);
 CREATE INDEX IF NOT EXISTS idx_despesas_vencimento ON despesas(user_id, data_vencimento);
 CREATE INDEX IF NOT EXISTS idx_despesas_pagamento ON despesas(user_id, data_pagamento);
+CREATE INDEX IF NOT EXISTS idx_despesas_parcelamento ON despesas(parcelamento_id);
 CREATE INDEX IF NOT EXISTS idx_assinaturas_user ON assinaturas(user_id);
 CREATE INDEX IF NOT EXISTS idx_parcelamentos_user ON parcelamentos(user_id);
 

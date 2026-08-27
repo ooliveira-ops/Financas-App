@@ -235,6 +235,26 @@ function AppLogado({ session }) {
     setReceitas(prev => prev.filter(r => r.id !== id));
   });
 
+  // `parcelamentos` guarda só o acompanhamento; o dinheiro é a despesa de cada parcela.
+  // Por isso o progresso é recalculado a partir delas a cada mudança, nunca incrementado —
+  // assim as duas telas mostram o mesmo estado, independente de onde a parcela foi quitada.
+  const sincronizarParcelamento = async (parcelamentoId, listaDespesas) => {
+    const doParcelamento = listaDespesas.filter(d => d.parcelamento_id === parcelamentoId);
+    if (doParcelamento.length === 0) return;
+    const vencimento = (d) => d.data_vencimento || d.data || "";
+    const pagas = doParcelamento.filter(d => d.status === "paga");
+    const pendentes = doParcelamento.filter(d => d.status !== "paga").sort((a, b) => vencimento(a).localeCompare(vencimento(b)));
+    const ultimaPaga = [...pagas].sort((a, b) => vencimento(b).localeCompare(vencimento(a)))[0];
+    const { data, error } = await supabase.from("parcelamentos").update({
+      parcelas_pagas: pagas.length,
+      valor_pago: Math.round(pagas.reduce((s, d) => s + parseFloat(d.valor || 0), 0) * 100) / 100,
+      status: pendentes.length === 0 ? "finalizado" : "ativo",
+      proxima_parcela_data: pendentes.length > 0 ? vencimento(pendentes[0]) : (ultimaPaga ? vencimento(ultimaPaga) : null),
+    }).eq("id", parcelamentoId).select().maybeSingle();
+    if (error) return notificar("Não foi possível atualizar o parcelamento: " + error.message);
+    if (data) setParcelamentos(prev => prev.map(p => p.id === parcelamentoId ? data : p));
+  };
+
   const adicionarDespesa = async (n) => {
     const { parcelas, dataVencimento, valor, categoria_id, forma_pagamento, ...resto } = n;
     // Select vazio devolve string, e coluna UUID/CHECK não aceita "" — vira NULL.
@@ -250,18 +270,25 @@ function AppLogado({ session }) {
       };
     });
     const { data, error } = await supabase.from("despesas").insert(lista).select();
-    if (error) return notificar("Não foi possível salvar a despesa: " + error.message);
+    if (error) { notificar("Não foi possível salvar a despesa: " + error.message); return []; }
     if (data) setDespesas(prev => [...prev, ...data]);
+    return data || [];
   };
   const removerDespesa = (id) => pedirConfirmacao("Apagar esta despesa? Não dá para desfazer.", async () => {
+    const alvo = despesas.find(d => d.id === id);
     const { error } = await supabase.from("despesas").delete().eq("id", id);
     if (error) return notificar("Não foi possível apagar: " + error.message);
-    setDespesas(prev => prev.filter(d => d.id !== id));
+    const restantes = despesas.filter(d => d.id !== id);
+    setDespesas(restantes);
+    if (alvo?.parcelamento_id) await sincronizarParcelamento(alvo.parcelamento_id, restantes);
   });
   const marcarComoPaga = async (id) => {
-    const { data, error } = await supabase.from("despesas").update({ status: "paga", data_pagamento: hojeISO() }).eq("id", id).select().single();
+    const { data, error } = await supabase.from("despesas").update({ status: "paga", data_pagamento: hojeISO() }).eq("id", id).select().maybeSingle();
     if (error) return notificar("Não foi possível marcar como paga: " + error.message);
-    if (data) setDespesas(prev => prev.map(d => d.id === id ? data : d));
+    if (!data) return notificar("A despesa não foi atualizada. Recarregue a página e tente de novo.");
+    const atualizadas = despesas.map(d => d.id === id ? data : d);
+    setDespesas(atualizadas);
+    if (data.parcelamento_id) await sincronizarParcelamento(data.parcelamento_id, atualizadas);
   };
 
   const adicionarAssinatura = async (n) => {
@@ -291,7 +318,8 @@ function AppLogado({ session }) {
     const parcelasTotal = parseInt(n.parcelas_total);
     const { data, error } = await supabase.from("parcelamentos").insert({ descricao: n.descricao, valor_total: parseFloat(n.valor_total), parcelas_total: parcelasTotal, parcelas_pagas: 0, valor_pago: 0, user_id: userId, proxima_parcela_data: n.dataInicio, categoria_id: n.categoria_id || null, status: "ativo" }).select().single();
     if (error) return notificar("Não foi possível salvar o parcelamento: " + error.message);
-    if (data) setParcelamentos(prev => [...prev, data]);
+    if (!data) return notificar("O parcelamento não foi salvo. Tente de novo.");
+    setParcelamentos(prev => [...prev, data]);
     await adicionarDespesa({
       descricao: n.descricao,
       valor: parseFloat(n.valor_total),
@@ -299,12 +327,25 @@ function AppLogado({ session }) {
       forma_pagamento: n.forma_pagamento,
       dataVencimento: n.dataInicio,
       parcelas: parcelasTotal,
+      parcelamento_id: data.id,
     });
     await recarregarDespesas();
   };
+  // O botão da aba Parcelamentos quita a próxima parcela pendente — a mesma despesa que
+  // apareceria na aba Despesas. Parcelamento antigo, sem despesa vinculada, ainda avança
+  // pelo contador próprio: não há parcela para marcar.
   const marcarParcelaComoPaga = async (id) => {
     const parc = parcelamentos.find(p => p.id === id);
-    if (!parc || parc.parcelas_pagas >= parc.parcelas_total) return notificar("Todas as parcelas já foram pagas!", "info");
+    if (!parc) return;
+    const vinculadas = despesas.filter(d => d.parcelamento_id === id);
+    if (vinculadas.length > 0) {
+      const pendentes = vinculadas
+        .filter(d => d.status !== "paga")
+        .sort((a, b) => (a.data_vencimento || a.data || "").localeCompare(b.data_vencimento || b.data || ""));
+      if (pendentes.length === 0) return notificar("Todas as parcelas já foram pagas!", "info");
+      return marcarComoPaga(pendentes[0].id);
+    }
+    if (parc.parcelas_pagas >= parc.parcelas_total) return notificar("Todas as parcelas já foram pagas!", "info");
     const novasParcelas = parc.parcelas_pagas + 1;
     const ehUltima = novasParcelas >= parc.parcelas_total;
     // A última parcela fecha no total exato, para não sobrar nem faltar centavo.
@@ -318,14 +359,15 @@ function AppLogado({ session }) {
       proxima_parcela_data: ehUltima || !parc.proxima_parcela_data
         ? parc.proxima_parcela_data
         : somarMeses(parc.proxima_parcela_data, 1),
-    }).eq("id", id).select().single();
+    }).eq("id", id).select().maybeSingle();
     if (error) return notificar("Não foi possível atualizar o parcelamento: " + error.message);
     if (data) setParcelamentos(prev => prev.map(p => p.id === id ? data : p));
   };
-  const removerParcelamento = (id) => pedirConfirmacao("Apagar este parcelamento? O histórico de parcelas pagas será perdido.", async () => {
+  const removerParcelamento = (id) => pedirConfirmacao("Apagar este parcelamento? As despesas das parcelas continuam na lista.", async () => {
     const { error } = await supabase.from("parcelamentos").delete().eq("id", id);
     if (error) return notificar("Não foi possível apagar: " + error.message);
     setParcelamentos(prev => prev.filter(p => p.id !== id));
+    setDespesas(prev => prev.map(d => d.parcelamento_id === id ? { ...d, parcelamento_id: null } : d));
   });
   const adicionarCategoria = async (n) => {
     const { data, error } = await supabase.from("categorias").insert({ ...n, user_id: userId, padrao: false }).select().single();
@@ -1019,7 +1061,7 @@ function ParcelamentosAba({ parcelamentos, categorias, onAdicionar, onRemover, o
       <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl">
         {parcelamentos.length===0?<div className="p-12 text-center"><p className="font-body text-slate-400/40">Nenhum parcelamento</p></div>:(
           <div className="divide-y divide-blue-900/20">
-            {parcelamentos.map(p=>{const pct=(p.parcelas_pagas/p.parcelas_total)*100;const vp=p.valor_total/p.parcelas_total;return(
+            {parcelamentos.map(p=>{const pct=(p.parcelas_pagas/p.parcelas_total)*100;const vp=dividirEmParcelas(p.valor_total,p.parcelas_total)[0];return(
               <div key={p.id} className="p-6 hover:bg-white/[0.02] transition">
                 <div className="flex items-start justify-between mb-4"><div><h3 className="font-body text-lg text-slate-100">{p.descricao}</h3><p className="font-mono-c text-[10px] text-slate-400/50 mt-1">Próx: {formatarDataBR(p.proxima_parcela_data)}</p></div><button onClick={()=>onRemover(p.id)} className="text-slate-400/30 hover:text-red-400"><Trash2 size={14}/></button></div>
                 <div className="grid grid-cols-2 gap-4 mb-4">

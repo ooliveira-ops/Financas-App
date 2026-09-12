@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import {
   Plus, Trash2, Wallet, X, TrendingUp, Repeat, Home, PieChart as PieIcon,
   Check, LogOut, Loader2, Clock, History, CheckCircle2, Bell, Zap,
-  FileDown, Shield, BarChart2, RefreshCw, AlertTriangle,
+  FileDown, Shield, BarChart2, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { supabase } from "./supabase";
 import Auth from "./Auth";
@@ -156,6 +156,13 @@ function AppLogado({ session }) {
     }
   };
 
+  // A chamada do supabase-js só vai à rede quando a promise é consumida: construir a
+  // query e descartá-la não dispara requisição nenhuma. Por isso o registro fica numa
+  // função própria, que roda de verdade sem prender o primeiro render.
+  const registrarUltimoLogin = async () => {
+    await supabase.from("profiles").update({ ultimo_login: new Date().toISOString() }).eq("id", userId);
+  };
+
   const carregarTudo = async () => {
     // Mutex: impede execução simultânea
     if (carregandoRef.current) return;
@@ -174,9 +181,7 @@ function AppLogado({ session }) {
       setAssinaturas(a);
       setParcelamentos(p);
       setIsAdmin(prof.data?.is_admin || false);
-      // Sem await: nada depende desta escrita, e aguardá-la custa um round-trip
-      // antes do primeiro render.
-      supabase.from("profiles").update({ ultimo_login: new Date().toISOString() }).eq("id", userId);
+      registrarUltimoLogin();
 
       // Só gera despesas de assinaturas se ainda não gerou neste mês
       const mes = mesAtual();
@@ -785,6 +790,34 @@ const rotuloParcela = (d) =>
     ? <span className="font-mono-c text-[10px] text-slate-400/50 ml-2">{d.parcela_atual}/{d.parcelas_total}</span>
     : null;
 
+// Um mês por vez, em linha única. Um botão por mês cresce junto com o histórico e,
+// em tela estreita, empurra a lista de lançamentos para fora da primeira dobra.
+// O `select` nativo abre o seletor do próprio sistema no celular; as setas atendem
+// a navegação sequencial, que é o uso comum no desktop.
+function SeletorMes({ meses, valor, onChange, incluirTodos = false, rotuloTodos = "Todos os meses" }) {
+  const opcoes = incluirTodos ? ["todos", ...meses] : meses;
+  if (opcoes.length === 0) return <p className="font-body text-slate-400/50 text-sm">Nenhum mês ainda.</p>;
+  const atual = opcoes.indexOf(valor);
+  const irPara = (delta) => { const alvo = opcoes[atual + delta]; if (alvo) onChange(alvo); };
+  const setaCls = "p-2 rounded-full bg-white/5 border border-blue-900/30 text-slate-300 transition-all enabled:hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed";
+  return (
+    <div className="flex items-center gap-2 w-full sm:w-auto">
+      <button onClick={() => irPara(-1)} disabled={atual <= 0} className={setaCls} aria-label="Mês anterior"><ChevronLeft size={16}/></button>
+      <div className="relative flex-1 sm:flex-none">
+        <select
+          value={valor}
+          onChange={e => onChange(e.target.value)}
+          className="w-full sm:w-52 appearance-none bg-white/5 border border-blue-900/30 rounded-full pl-4 pr-9 py-2 font-body text-sm text-slate-200 focus:outline-none focus:border-blue-500/50 cursor-pointer"
+        >
+          {opcoes.map(m => <option key={m} value={m} className="bg-[#0d1829]">{m === "todos" ? rotuloTodos : nomeMes(m)}</option>)}
+        </select>
+        <ChevronRight size={14} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-slate-400/50 pointer-events-none"/>
+      </div>
+      <button onClick={() => irPara(1)} disabled={atual >= opcoes.length - 1} className={setaCls} aria-label="Próximo mês"><ChevronRight size={16}/></button>
+    </div>
+  );
+}
+
 // ── HISTÓRICO ────────────────────────────────────────────────────────────────────
 function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome, onAviso }) {
   const mesesComDespesas = useMemo(() => {
@@ -826,11 +859,7 @@ function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome
         <div className="flex items-center gap-3"><BotaoAjuda topico="historico"/><div><p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Histórico de Meses</p><h2 className="font-display text-3xl italic text-slate-100 mt-1">{nomeMes(mesSelecionado)}</h2></div></div>
         <button onClick={gerarPDFMes} className="px-5 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-body text-sm flex items-center gap-2 transition-all"><FileDown size={14}/>Gerar PDF</button>
       </div>
-      <div className="flex gap-2 flex-wrap">
-        {mesesComDespesas.length === 0 ? <p className="font-body text-slate-400/50 text-sm">Nenhum mês ainda.</p> : mesesComDespesas.map(m => (
-          <button key={m} onClick={() => setMesSelecionado(m)} className={`px-4 py-2 rounded-full font-body text-sm transition-all ${mesSelecionado===m?"bg-blue-600 text-white":"bg-white/5 text-slate-300 hover:bg-white/10 border border-blue-900/30"}`}>{nomeMes(m)}</button>
-        ))}
-      </div>
+      <SeletorMes meses={mesesComDespesas} valor={mesSelecionado} onChange={setMesSelecionado}/>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl p-5"><p className="font-mono-c text-[10px] text-slate-400/60 uppercase mb-2">Pago</p><p className="font-mono-c num-tabular text-2xl font-bold text-emerald-400">{formatBRL(totalPago)}</p></div>
         <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl p-5"><p className="font-mono-c text-[10px] text-slate-400/60 uppercase mb-2">Pendente</p><p className="font-mono-c num-tabular text-2xl font-bold text-sky-400">{formatBRL(totalPendente)}</p></div>
@@ -977,6 +1006,21 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, onAdicionar
 
   const total = useMemo(() => lista.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [lista]);
 
+  // Com vários meses na tela, a data solta em cada linha não diz a que período o bloco
+  // pertence. Agrupar dá esse enquadramento e ainda mostra quanto pesa cada mês.
+  const grupos = useMemo(() => {
+    const referencia = (d) => (subAba === "pendentes" ? (d.data_vencimento || d.data) : d.data_pagamento) || "";
+    const mapa = new Map();
+    [...lista].sort((a, b) => referencia(b).localeCompare(referencia(a))).forEach(d => {
+      const mes = referencia(d).substring(0, 7) || "sem-data";
+      if (!mapa.has(mes)) mapa.set(mes, []);
+      mapa.get(mes).push(d);
+    });
+    return [...mapa.entries()].map(([mes, itens]) => ({
+      mes, itens, subtotal: itens.reduce((s, d) => s + parseFloat(d.valor || 0), 0),
+    }));
+  }, [lista, subAba]);
+
   return (
     <div className="space-y-8 animate-fadeInUp">
       <div className="flex items-end justify-between flex-wrap gap-4">
@@ -1000,12 +1044,7 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, onAdicionar
         <button onClick={()=>setSubAba("pagas")} className={`px-4 py-1.5 rounded-full font-body text-xs transition-all ${subAba==="pagas"?"bg-blue-600 text-white":"text-slate-400/70"}`}>Histórico ({despesasPagas.length})</button>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
-        <button onClick={()=>setMesFiltro("todos")} className={`px-4 py-2 rounded-full font-body text-sm transition-all ${mesFiltro==="todos"?"bg-blue-600 text-white":"bg-white/5 text-slate-300 hover:bg-white/10 border border-blue-900/30"}`}>Todos os meses</button>
-        {mesesDisponiveis.map(m => (
-          <button key={m} onClick={()=>setMesFiltro(m)} className={`px-4 py-2 rounded-full font-body text-sm transition-all ${mesFiltro===m?"bg-blue-600 text-white":"bg-white/5 text-slate-300 hover:bg-white/10 border border-blue-900/30"}`}>{nomeMes(m)}</button>
-        ))}
-      </div>
+      <SeletorMes meses={mesesDisponiveis} valor={mesFiltro} onChange={setMesFiltro} incluirTodos/>
 
       <div className="flex gap-2 flex-wrap items-center">
         <span className="font-mono-c text-[10px] text-slate-400/50 uppercase mr-1">Categorias</span>
@@ -1025,20 +1064,33 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, onAdicionar
       <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl">
         {lista.length===0?<div className="p-12 text-center"><p className="font-body text-slate-400/40">{subAba==="pendentes"?"Sem despesas pendentes ✨":"Sem histórico"}</p></div>:(
           <div className="divide-y divide-blue-900/20">
-            {[...lista].sort((a,b)=>(b.data_vencimento||b.data||"").localeCompare(a.data_vencimento||a.data||"")).map(d=>(
-              <div key={d.id} className="flex items-center gap-3 p-4 hover:bg-white/[0.02] group">
-                <div className="flex-1">
-                  <div className="font-body text-slate-200">{d.descricao}{rotuloParcela(d)}</div>
-                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                    <span className="font-mono-c text-[10px] text-slate-400/50">{formatarDataBR(d.data_vencimento||d.data)}</span>
-                    {nomeCategoria(d.categoria_id) && <span className="font-body text-[10px] px-2 py-0.5 rounded-full border" style={{color:corCategoria(d.categoria_id),borderColor:corCategoria(d.categoria_id)+"55",background:corCategoria(d.categoria_id)+"14"}}>{nomeCategoria(d.categoria_id)}</span>}
-                    {rotuloForma(d.forma_pagamento) && <span className="font-body text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-blue-900/30 text-slate-400/70">{rotuloForma(d.forma_pagamento)}</span>}
+            {grupos.map(({mes, itens, subtotal})=>(
+              <div key={mes}>
+                {grupos.length>1&&(
+                  <div className="flex items-center justify-between gap-3 px-4 py-2 bg-white/[0.02] border-b border-blue-900/20">
+                    <span className="font-mono-c text-[10px] uppercase tracking-wider text-slate-400/60">{mes==="sem-data"?"Sem data":nomeMes(mes)}</span>
+                    <span className="font-mono-c num-tabular text-[11px] text-slate-400/60">{itens.length} · {formatBRL(subtotal)}</span>
                   </div>
-                </div>
-                <div className="font-mono-c num-tabular text-slate-300">{formatBRL(d.valor)}</div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {subAba==="pendentes"&&<button onClick={()=>onMarcarPaga(d.id)} className="p-1 text-emerald-400/70 hover:text-emerald-400"><Check size={14}/></button>}
-                  <button onClick={()=>onRemover(d.id)} className="p-1 text-slate-400/30 hover:text-red-400"><Trash2 size={14}/></button>
+                )}
+                <div className="divide-y divide-blue-900/20">
+                  {itens.map(d=>(
+                    <div key={d.id} className="flex items-center gap-3 p-4 hover:bg-white/[0.02] group">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-body text-slate-200">{d.descricao}{rotuloParcela(d)}</div>
+                        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                          <span className="font-mono-c text-[10px] text-slate-400/50">{formatarDataBR(d.data_vencimento||d.data)}</span>
+                          {nomeCategoria(d.categoria_id) && <span className="font-body text-[10px] px-2 py-0.5 rounded-full border" style={{color:corCategoria(d.categoria_id),borderColor:corCategoria(d.categoria_id)+"55",background:corCategoria(d.categoria_id)+"14"}}>{nomeCategoria(d.categoria_id)}</span>}
+                          {rotuloForma(d.forma_pagamento) && <span className="font-body text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-blue-900/30 text-slate-400/70">{rotuloForma(d.forma_pagamento)}</span>}
+                        </div>
+                      </div>
+                      <div className="font-mono-c num-tabular text-slate-300 whitespace-nowrap">{formatBRL(d.valor)}</div>
+                      {/* Sem hover em tela de toque: escondido só a partir de sm. */}
+                      <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        {subAba==="pendentes"&&<button onClick={()=>onMarcarPaga(d.id)} className="p-1 text-emerald-400/70 hover:text-emerald-400"><Check size={14}/></button>}
+                        <button onClick={()=>onRemover(d.id)} className="p-1 text-slate-400/30 hover:text-red-400"><Trash2 size={14}/></button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -1096,7 +1148,7 @@ function ReceitasAba({ receitas, totalReceitasMes, onAdicionar, onRemover }) {
             <div key={r.id} className="flex items-center gap-4 p-4 hover:bg-white/[0.02] group">
               <div className="flex-1"><div className="font-body text-slate-200">{r.fonte}</div></div>
               <div className="font-mono-c num-tabular text-emerald-400">{formatBRL(r.valor)}</div>
-              <button onClick={()=>onRemover(r.id)} className="opacity-0 group-hover:opacity-100 text-slate-400/30 hover:text-red-400 transition-opacity"><Trash2 size={14}/></button>
+              <button onClick={()=>onRemover(r.id)} className="sm:opacity-0 sm:group-hover:opacity-100 text-slate-400/30 hover:text-red-400 transition-opacity"><Trash2 size={14}/></button>
             </div>
           ))}</div>
         )}
@@ -1119,7 +1171,7 @@ function AssinaturasAba({ assinaturas, total, onAdicionar, onRemover }) {
             <div key={a.id} className="flex items-center gap-4 p-4 hover:bg-white/[0.02] group">
               <div className="flex-1"><div className="font-body text-slate-200">{a.nome}</div></div>
               <div className="font-mono-c num-tabular text-sky-300">{formatBRL(a.valor)}</div>
-              <button onClick={()=>onRemover(a.id)} className="opacity-0 group-hover:opacity-100 text-slate-400/30 hover:text-red-400 transition-opacity"><Trash2 size={14}/></button>
+              <button onClick={()=>onRemover(a.id)} className="sm:opacity-0 sm:group-hover:opacity-100 text-slate-400/30 hover:text-red-400 transition-opacity"><Trash2 size={14}/></button>
             </div>
           ))}</div>
         )}

@@ -175,6 +175,35 @@ describe('App com o Supabase mockado', () => {
       expect(valorDe('A pagar')).toContain('R$ 0,00')
     })
 
+    it('o saldo atual aparece na própria aba Despesas e cai na hora do pagamento', async () => {
+      estado.cliente = criarCliente({
+        escrita: (c) => {
+          if (c.tabela === 'despesas' && c.tem('update')) {
+            const mercado = bancoInicial().despesas.find(d => d.id === 10)
+            return { data: [{ ...mercado, ...c.args('update')[0] }], error: null }
+          }
+        },
+      })
+      await abrirApp()
+      await irParaDespesas()
+      const saldoNaAba = () => screen.getByText('Saldo atual', { selector: 'p' }).parentElement.textContent.replace(/\s/g, ' ')
+
+      expect(saldoNaAba()).toContain('R$ 3.400,00')
+      await user.click(screen.getByRole('button', { name: 'Marcar como paga' }))
+      await waitFor(() => expect(saldoNaAba()).toContain('R$ 3.200,00'))
+      expect(screen.queryByText('Saldo atual', { selector: 'span' })).toBeNull()
+    })
+
+    it('sem receita, a aba Despesas mostra traço no saldo', async () => {
+      estado.cliente = criarCliente({ banco: { ...bancoInicial(), receitas: [] } })
+      render(<App/>)
+      await screen.findByText(/olá, Teste/)
+      await user.click(screen.getByRole('button', { name: 'Despesas' }))
+      const bloco = (await screen.findByText('Saldo atual', { selector: 'p' })).parentElement
+      expect(bloco.textContent).toContain('—')
+      expect(bloco.textContent).not.toContain('R$')
+    })
+
     it('erro no update é avisado e nada muda', async () => {
       estado.cliente = criarCliente({ escrita: (c) => (c.tem('update') && c.tabela === 'despesas' ? { data: null, error: { message: 'falha simulada' } } : undefined) })
       await abrirApp()
@@ -183,6 +212,72 @@ describe('App com o Supabase mockado', () => {
       await user.click(screen.getByRole('button', { name: 'Marcar como paga' }))
       expect(await screen.findByText(/Não foi possível marcar como paga: falha simulada/)).toBeTruthy()
       expect(screen.getByRole('button', { name: 'Editar Mercado' })).toBeTruthy()
+    })
+  })
+
+  describe('acertar o saldo com o banco', () => {
+    // Ajuste é uma receita gravada no mês anterior; o insert devolve a linha criada.
+    const gravaAjuste = (c) => (c.tabela === 'receitas' && c.tem('insert')
+      ? { data: { id: 99, created_at: '2026-03-15T15:00:00Z', ...c.args('insert')[0] }, error: null }
+      : undefined)
+    const abrirModal = async () => {
+      await user.click(cardDe('Saldo inicial'))
+      return screen.getByRole('dialog', { name: 'Saldo inicial' })
+    }
+
+    it('"Registrar saldo atual" é o padrão e faz o saldo atual virar o valor informado', async () => {
+      estado.cliente = criarCliente({ escrita: gravaAjuste })
+      await abrirApp()
+      const modal = await abrirModal()
+
+      expect(within(modal).getByRole('button', { name: 'Registrar saldo atual', pressed: true })).toBeTruthy()
+      expect(modal.textContent.replace(/\s/g, ' ')).toContain('Hoje o app calcula R$ 3.400,00')
+      await user.type(within(modal).getByPlaceholderText('0,00'), '3000')
+      expect(modal.textContent.replace(/\s/g, ' ')).toContain('correção de −R$ 400,00')
+      await user.click(within(modal).getAllByRole('button', { name: 'Registrar saldo atual' }).at(-1))
+
+      expect(await screen.findByText(/Saldo atual registrado em R\$\s3\.000,00 \(−R\$\s400,00\)/)).toBeTruthy()
+      const [ajuste] = estado.cliente.na('receitas', 'insert')
+      expect(ajuste.args('insert')[0]).toMatchObject({ fonte: 'Ajuste de saldo', valor: -400, mes: '2026-02', user_id: USUARIO })
+      expect(valorDe('Saldo atual')).toContain('R$ 3.000,00')
+      expect(valorDe('Saldo inicial')).toContain('R$ 100,00')
+      expect(valorDe('Receitas')).toContain('R$ 3.000,00')
+
+      // A correção aparece dizendo o que corrige e quando foi feita, não só o mês.
+      const reaberto = await abrirModal()
+      const texto = reaberto.textContent.replace(/\s/g, ' ')
+      expect(texto).toContain('Correção do saldo até Fevereiro 2026')
+      expect(texto).toContain('feita em 15/03/2026')
+      expect(texto).toContain('−R$ 400,00')
+      expect(within(reaberto).getByRole('button', { name: 'Desfazer correção' })).toBeTruthy()
+    })
+
+    it('"Saldo do início do mês" continua acertando só o começo do mês', async () => {
+      estado.cliente = criarCliente({ escrita: gravaAjuste })
+      await abrirApp()
+      const modal = await abrirModal()
+
+      await user.click(within(modal).getByRole('button', { name: 'Saldo do início do mês' }))
+      expect(modal.textContent).toContain('Quanto você tinha no dia 1º de Março 2026')
+      expect(modal.textContent).toContain('Não é receita do mês')
+      await user.type(within(modal).getByPlaceholderText('0,00'), '600')
+      await user.click(within(modal).getByRole('button', { name: 'Registrar saldo do dia 1º' }))
+
+      expect(await screen.findByText(/Saldo inicial ajustado para R\$\s600,00/)).toBeTruthy()
+      expect(estado.cliente.na('receitas', 'insert')[0].args('insert')[0]).toMatchObject({ valor: 100, mes: '2026-02' })
+      expect(valorDe('Saldo inicial')).toContain('R$ 600,00')
+      expect(valorDe('Saldo atual')).toContain('R$ 3.500,00')
+    })
+
+    it('valor igual ao calculado não grava nada', async () => {
+      estado.cliente = criarCliente({ escrita: gravaAjuste })
+      await abrirApp()
+      const modal = await abrirModal()
+
+      await user.type(within(modal).getByPlaceholderText('0,00'), '3400')
+      expect(modal.textContent).toContain('Já está nesse valor.')
+      expect(within(modal).getAllByRole('button', { name: 'Registrar saldo atual' }).at(-1).disabled).toBe(true)
+      expect(estado.cliente.na('receitas', 'insert')).toEqual([])
     })
   })
 

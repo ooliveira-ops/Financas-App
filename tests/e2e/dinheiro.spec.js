@@ -46,9 +46,13 @@ test('despesa: criar pendente, marcar paga, e o saldo cai exatamente uma vez', a
   await expect(card(page, 'Saldo atual')).toContainText('R$ 1.000,00')
 
   await irPara(page, 'Despesas')
+  const saldoNaAba = page.getByText('Saldo atual', { exact: true }).locator('..')
+  await expect(saldoNaAba).toContainText('R$ 1.000,00')
   // Clique duplo: a trava por item precisa impedir o segundo pagamento.
   await page.getByRole('button', { name: 'Marcar como paga' }).dblclick()
   await expect(aviso(page)).toContainText('"Mercado" paga')
+  // O saldo cai na própria aba, sem ir à Home.
+  await expect(saldoNaAba).toContainText('R$ 850,00')
 
   await irPara(page, 'Início')
   await expect(card(page, 'Pago')).toContainText('R$ 150,00')

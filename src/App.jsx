@@ -117,7 +117,6 @@ function AppLogado({ session }) {
   const carregandoRef = React.useRef(false);
   const assinaturasGeradasMesRef = React.useRef("");
   const [mostrarBanner, setMostrarBanner] = useState(false);
-  const [bannerSaindo, setBannerSaindo] = useState(false);
   const [novidades, setNovidades] = useState({ versao: "", itens: [] });
 
   // Usa as despesas já carregadas para saber o que já existe — sem nova query ao banco.
@@ -474,11 +473,7 @@ function AppLogado({ session }) {
   }, []);
 
   useEffect(() => {
-    if (!mostrarBanner) return;
-    localStorage.setItem("banner_versao_vista", novidades.versao);
-    const timerSaida = setTimeout(() => setBannerSaindo(true), 7000);
-    const timerSome = setTimeout(() => setMostrarBanner(false), 8000);
-    return () => { clearTimeout(timerSaida); clearTimeout(timerSome); };
+    if (mostrarBanner) localStorage.setItem("banner_versao_vista", novidades.versao);
   }, [mostrarBanner]);
 
   const hoje = hojeISO();
@@ -547,38 +542,7 @@ function AppLogado({ session }) {
       <div className="fixed top-0 left-1/4 w-[600px] h-[600px] pointer-events-none" style={{background:"radial-gradient(circle,rgba(37,99,235,.10),transparent 70%)"}}/>
       <div className="fixed bottom-0 right-1/4 w-[600px] h-[600px] pointer-events-none" style={{background:"radial-gradient(circle,rgba(14,165,233,.07),transparent 70%)"}}/>
 
-      {mostrarBanner && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm ${bannerSaindo ? "banner-exit" : "banner-enter"}`}>
-          <div className="bg-[#0d1829] border-2 border-blue-500/50 rounded-2xl w-full max-w-lg mx-4 shadow-2xl shadow-blue-900/40 overflow-hidden">
-            {/* Header */}
-            <div className="bg-blue-600/20 border-b border-blue-500/30 px-6 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"/>
-                <span className="font-mono-c text-xs text-blue-300 uppercase tracking-widest">Últimas atualizações</span>
-              </div>
-              <button onClick={() => { setBannerSaindo(true); setTimeout(() => setMostrarBanner(false), 500); }} className="text-slate-400/60 hover:text-white transition-colors">
-                <X size={16}/>
-              </button>
-            </div>
-            {/* Lista de atualizações */}
-            <div className="px-6 py-5 space-y-3">
-              {novidades.itens.map((item, i) => (
-                <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.03] border border-blue-900/30">
-                  <span className="text-blue-400 mt-0.5 flex-shrink-0">✔︎</span>
-                  <span className="font-body text-sm text-slate-200 leading-relaxed">{item}</span>
-                </div>
-              ))}
-            </div>
-            {/* Footer com barra de progresso */}
-            <div className="px-6 pb-5">
-              <div className="w-full bg-blue-900/30 rounded-full h-1 overflow-hidden">
-                <div className="bg-blue-500 h-full rounded-full" style={{animation: "progress8s 8s linear forwards"}}/>
-              </div>
-              <p className="font-body text-[11px] text-slate-400/50 text-center mt-2">Fecha automaticamente em 8s</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {mostrarBanner && <BannerNovidades itens={novidades.itens} onFechar={() => setMostrarBanner(false)}/>}
 
       {erroCarregar && (
         <div className="relative z-40 mx-4 mt-4 bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3 flex-wrap">
@@ -689,6 +653,68 @@ function AppLogado({ session }) {
       {modalAssinatura && <ModalAssinatura onFechar={() => setModalAssinatura(false)} onSalvar={async a => { await adicionarAssinatura(a); setModalAssinatura(false); }}/>}
       {modalParcelamento && <ModalParcelamento categorias={categorias} onFechar={() => setModalParcelamento(false)} onSalvar={async p => { await adicionarParcelamento(p); setModalParcelamento(false); }}/>}
       {modalCategoria && <ModalCategoria onFechar={() => setModalCategoria(false)} onSalvar={async c => { await adicionarCategoria(c); setModalCategoria(false); }}/>}
+    </div>
+  );
+}
+
+// ── NOVIDADES (BANNER) ───────────────────────────────────────────────────────────
+// Some sozinho em 8 s se ninguém mexer. Tocar ou rolar a lista cancela a contagem: lista
+// longa precisa de tempo para ser lida. O cartão nunca passa da altura da tela — o
+// cabeçalho com o X fica sempre visível e só a lista rola —, e tocar fora ou Esc também
+// fecham.
+const DURACAO_BANNER = 8000;
+const SAIDA_BANNER = 500;
+export function BannerNovidades({ itens, onFechar }) {
+  const [saindo, setSaindo] = useState(false);
+  const [fixo, setFixo] = useState(false);
+  const fechar = () => setSaindo(true);
+  useEffect(() => {
+    if (!saindo) return;
+    const t = setTimeout(onFechar, SAIDA_BANNER);
+    return () => clearTimeout(t);
+  }, [saindo]);
+  useEffect(() => {
+    if (fixo) return;
+    const t = setTimeout(fechar, DURACAO_BANNER - SAIDA_BANNER);
+    return () => clearTimeout(t);
+  }, [fixo]);
+  useEffect(() => {
+    const aoTeclar = (e) => { if (e.key === "Escape") fechar(); };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, []);
+  return (
+    <div onClick={fechar} className={`fixed inset-0 z-50 flex items-center justify-center px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] bg-black/60 backdrop-blur-sm ${saindo ? "banner-exit" : "banner-enter"}`}>
+      <div role="dialog" aria-modal="true" aria-label="Últimas atualizações" onClick={e => e.stopPropagation()} onPointerDown={() => setFixo(true)}
+        className="bg-[#0d1829] border-2 border-blue-500/50 rounded-2xl w-full max-w-lg max-h-full flex flex-col shadow-2xl shadow-blue-900/40 overflow-hidden">
+        <div className="shrink-0 bg-blue-600/20 border-b border-blue-500/30 pl-6 pr-3 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"/>
+            <span className="font-mono-c text-xs text-blue-300 uppercase tracking-widest">Últimas atualizações</span>
+          </div>
+          <button onClick={fechar} className="w-11 h-11 rounded-full flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10 transition-colors" aria-label="Fechar novidades">
+            <X size={20}/>
+          </button>
+        </div>
+        <div onScroll={() => setFixo(true)} className="min-h-0 overflow-y-auto overscroll-contain px-6 py-5 space-y-3">
+          {itens.map((item, i) => (
+            <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-white/[0.03] border border-blue-900/30">
+              <span className="text-blue-400 mt-0.5 flex-shrink-0">✔︎</span>
+              <span className="font-body text-sm text-slate-200 leading-relaxed">{item}</span>
+            </div>
+          ))}
+        </div>
+        <div className="shrink-0 px-6 pb-5 pt-1">
+          {fixo
+            ? <p className="font-body text-[11px] text-slate-400/60 text-center">Toque no X ou fora do quadro para fechar.</p>
+            : <>
+                <div className="w-full bg-blue-900/30 rounded-full h-1 overflow-hidden">
+                  <div className="bg-blue-500 h-full rounded-full" style={{animation: `progress8s ${DURACAO_BANNER}ms linear forwards`}}/>
+                </div>
+                <p className="font-body text-[11px] text-slate-400/50 text-center mt-2">Fecha sozinho em 8 s — toque na lista para mantê-la aberta</p>
+              </>}
+        </div>
+      </div>
     </div>
   );
 }

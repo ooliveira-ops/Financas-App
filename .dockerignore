@@ -1,0 +1,35 @@
+# Segredos e configuração local: as VITE_* entram por --build-arg
+.env
+.env.*
+!.env.example
+
+# Gerados e dependências: a imagem instala e builda do zero
+node_modules
+dist
+dist-ssr
+.vite
+coverage
+playwright-report
+test-results
+
+# Repositório, editor e sistema
+.git
+.vscode
+.idea
+.vercel
+.DS_Store
+Thumbs.db
+*.log
+
+# Supabase CLI local
+supabase/.temp
+supabase/.branches
+
+# Instruções locais de agente e arquivos pessoais
+CLAUDE.md
+ARMADILHAS.md
+.claude
+mailmap.txt
+substituicoes.txt
+*-TOKENS-PRIVADO.txt
+tokens.txt

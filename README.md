@@ -53,9 +53,13 @@ src/
 ├── supabase.js     # Cliente Supabase
 └── main.jsx        # Entry point
 
-api/ping.js         # Keep-alive do projeto Supabase, chamado pelo cron da Vercel
-supabase-setup.sql  # Schema completo: tabelas, índices, RLS e funções
+api/ping.js                   # Keep-alive do projeto Supabase, chamado pelo cron da Vercel
+supabase/supabase-setup.sql   # Schema completo: tabelas, índices, RLS e funções
+deploy/docker/                # Dockerfile e nginx.conf, alternativa à Vercel
 ```
+
+- [`supabase/`](supabase/README.md) — schema, tokens de convite, admin e novidades
+- [`deploy/`](deploy/README.md) — Vercel, Netlify ou Docker
 
 Toda a lógica de negócio roda no cliente; o Supabase é chamado direto do browser e o isolamento entre usuários é feito por Row Level Security.
 
@@ -111,7 +115,7 @@ No Supabase → **Authentication → Providers → Email** → desative **"Confi
 #### 4️⃣ Criar as tabelas
 
 No Supabase → **SQL Editor** → **New query** → cole todo o conteúdo de
-**`supabase-setup.sql`** (está na raiz do repositório) → **Run**.
+**`supabase/supabase-setup.sql`** → **Run**.
 
 Esse arquivo é a única definição do schema. Ele cria:
 
@@ -229,6 +233,8 @@ O `vercel.json` também configura um **cron** que chama `/api/ping` a cada 3 dia
 projeto Supabase não ser pausado por inatividade. Esse endpoint usa a função `ping()` do
 banco, então não depende de leitura anônima em nenhuma tabela de dados.
 
+Prefere Netlify ou um servidor próprio com Docker? Veja [`deploy/`](deploy/README.md).
+
 ---
 
 ### 📱 Etapa 6 — Instalar como aplicativo
@@ -271,46 +277,14 @@ Se preferir, não instale nada: usar pelo navegador mesmo funciona igual, é o m
 | "Token inválido" no cadastro | O passo 5 não rodou, ou o token já foi usado |
 | Login não entra | "Confirm email" ainda ativo no Supabase (passo 3) |
 | Aba **Usuários** não aparece | `is_admin` não foi marcado (passo 7) — saia e entre de novo na conta |
-| Erro de permissão ao salvar | O `supabase-setup.sql` não rodou por completo — rode de novo, ele é idempotente |
+| Erro de permissão ao salvar | O `supabase/supabase-setup.sql` não rodou por completo — rode de novo, ele é idempotente |
 
 ---
 
-## Gerenciar tokens
+## Gerenciar tokens e novidades
 
-```sql
--- Ver todos os tokens
-SELECT codigo, ativo, usado_por, usado_em FROM public.codigos_acesso ORDER BY id;
-
--- Ver só disponíveis
-SELECT codigo, descricao FROM public.codigos_acesso WHERE ativo = true ORDER BY id;
-
--- Ver só usados
-SELECT codigo, usado_por, usado_em FROM public.codigos_acesso WHERE ativo = false ORDER BY usado_em DESC;
-
--- Liberar token de volta
-UPDATE public.codigos_acesso
-SET ativo = true, usado_por = NULL, usado_em = NULL
-WHERE codigo = 'XXXX-XXXX';
-
--- Gerar token extra
-INSERT INTO public.codigos_acesso (codigo, descricao)
-VALUES (public.gerar_token_aleatorio(), 'Token extra');
-
--- Desativar todos (fechar cadastros)
-UPDATE public.codigos_acesso SET ativo = false;
-```
-
----
-
-## Gerenciar novidades (banner)
-
-O banner de atualizações é gerenciado pelo **Painel Admin → Usuários → Gerenciar Novidades**, sem tocar no código.
-
-1. Edite os itens da lista
-2. Mude a versão (ex: `v3` → `v4`) para forçar exibição para todos
-3. Clique **Publicar novidades**
-
-Cada usuário vê o banner **uma vez por versão**.
+As consultas para listar, liberar, gerar e desativar tokens, e o passo a passo para
+publicar o banner de novidades, estão em [`supabase/README.md`](supabase/README.md).
 
 ---
 

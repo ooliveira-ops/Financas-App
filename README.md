@@ -11,7 +11,7 @@ App de controle financeiro pessoal com receitas, despesas parceladas, categorias
 - **Acesso por tokens** — convite com tokens únicos, sem cadastro aberto
 - **Despesas** — pendentes vs pagas, com vencimento, categorias e seletor de mês. Por padrão a lista mostra todos os meses, para que uma conta atrasada não desapareça na virada, agrupada por período e com o subtotal de cada mês
 - **Parcelamento de despesa** — informe o valor total e o número de vezes; o app cria uma despesa por mês e divide em centavos exatos, com a última parcela absorvendo o arredondamento
-- **Parcelamentos** — compras grandes divididas em várias vezes: o app cria uma despesa por parcela e a aba mostra o progresso de pagamento com barra e próxima data. Quitar uma parcela em qualquer uma das duas telas atualiza a outra, porque o progresso é recalculado a partir das despesas em vez de contado à parte
+- **Parcelamentos** — compras grandes divididas em várias vezes: o app cria uma despesa por parcela e a aba mostra o progresso de pagamento com barra e próxima data. Quitar uma parcela em qualquer uma das duas telas atualiza a outra, porque o progresso é recalculado a partir das despesas em vez de contado à parte. Depois de quitado, o parcelamento pode ser marcado como **concluído** e sai da lista para uma seção recolhida, de onde dá para reabrir
 - **Assinaturas recorrentes** — a despesa do mês é gerada automaticamente no dia de vencimento escolhido
 - **Receitas mensais** — registre as entradas de cada mês
 - **Saldo acumulado** — soma as receitas de todo o histórico e desconta as despesas pagas. O que sobra de um mês transita sozinho para o mês seguinte, sem lançamento manual

@@ -43,6 +43,31 @@ painel.
 
 ---
 
+## 🔄 Atualizar um projeto que já existe
+
+Coluna nova usada pelo app precisa existir no banco **antes** de o código novo ir ao
+ar — senão a ação que a usa falha com `Could not find the '...' column`. As migrações
+ficam na seção **MIGRAÇÕES** do `supabase-setup.sql` e podem ser rodadas sozinhas no
+SQL Editor:
+
+| Para usar | Rode |
+|---|---|
+| "Marcar como concluído" em Parcelamentos | `ALTER TABLE parcelamentos ADD COLUMN IF NOT EXISTS concluido BOOLEAN NOT NULL DEFAULT FALSE;` |
+
+Depois de qualquer migração, rode também:
+
+```sql
+NOTIFY pgrst, 'reload schema';
+```
+
+A API do Supabase guarda o schema em cache; sem recarregá-lo, a coluna já criada ainda
+responde `Could not find the '...' column ... in the schema cache` por um tempo.
+
+**Deu certo se:** em **Table Editor → parcelamentos** aparece a coluna `concluido` e o
+botão do app funciona depois de recarregar a página.
+
+---
+
 ## 🎟️ Gerenciar tokens de convite
 
 O cadastro é fechado: cada conta nova consome um token da tabela `codigos_acesso`.

@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS parcelamentos (
   valor_pago NUMERIC(12, 2) NOT NULL DEFAULT 0,
   proxima_parcela_data DATE,
   status TEXT NOT NULL DEFAULT 'ativo' CHECK (status IN ('ativo', 'finalizado')),
+  concluido BOOLEAN NOT NULL DEFAULT FALSE, -- marcado pelo usuário para tirar da lista
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -140,6 +141,10 @@ WHERE d.parcelamento_id IS NULL
         WHERE p2.user_id = d.user_id
           AND p2.descricao = d.descricao
           AND p2.parcelas_total = d.parcelas_total) = 1;
+
+-- "Concluído" é uma escolha do usuário para arquivar o parcelamento já quitado; o
+-- `status` continua dizendo se ainda há parcela a pagar.
+ALTER TABLE parcelamentos ADD COLUMN IF NOT EXISTS concluido BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Progresso é sempre derivado das despesas, nunca incrementado por contador próprio.
 WITH progresso AS (
@@ -455,6 +460,10 @@ GRANT EXECUTE ON FUNCTION ping() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION verificar_codigo_acesso(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION consumir_codigo_acesso(TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION toggle_user_admin(UUID, BOOLEAN) TO authenticated;
+
+-- A API (PostgREST) guarda o schema em cache: sem recarregar, coluna recém-criada
+-- responde "Could not find the '...' column" até o cache se renovar sozinho.
+NOTIFY pgrst, 'reload schema';
 
 -- ============================================
 -- PRIMEIRO ADMIN

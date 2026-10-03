@@ -1,7 +1,8 @@
-# Build e testes em todo PR e em todo push para dev e main.
+# Build e testes em todo PR e em todo push para dev e main; depois do push, e só com tudo
+# verde, o deploy na Vercel (dev → preview, main → produção).
 #
 # Só dev e main: o repositório de backup recebe o branch espelho-v2, que não pode
-# disparar pipeline. Nenhum passo usa segredo — o e2e roda contra um Supabase local em
+# disparar pipeline. Os testes não usam segredo — o e2e roda contra um Supabase local em
 # Docker —, então PR vindo de fork (que não recebe secrets) roda igual.
 name: CI
 
@@ -10,11 +11,15 @@ on:
     branches: [dev, main]
   push:
     branches: [dev, main]
+  # Rodar à mão (aba Actions): primeiro deploy de quem acabou de configurar os secrets,
+  # ou republicar sem commit novo.
+  workflow_dispatch:
 
-# Um push novo no mesmo branch/PR cancela a execução anterior, que já ficou velha.
+# Um push novo no mesmo branch/PR cancela a execução anterior, que já ficou velha — menos
+# na main, para não interromper um deploy de produção no meio.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -25,7 +30,8 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
+    # Versão fixa: o ubuntu-latest muda de versão sozinho e pode quebrar o Playwright.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -41,7 +47,7 @@ jobs:
   unit:
     name: Testes unitários
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
@@ -62,7 +68,7 @@ jobs:
   e2e:
     name: Testes e2e
     needs: unit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
@@ -99,3 +105,13 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+
+  deploy:
+    name: Deploy
+    needs: e2e
+    # PR nunca publica; push e execução manual publicam só a partir de dev e main.
+    if: github.event_name != 'pull_request' && (github.ref_name == 'dev' || github.ref_name == 'main')
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ambiente: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+    secrets: inherit

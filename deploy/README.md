@@ -7,7 +7,7 @@ para `index.html` e não deixe o navegador cachear `index.html`, `sw.js` e
 
 | Alvo | Configuração | Quando usar |
 |---|---|---|
-| **Vercel** | `vercel.json` (raiz) + `api/` | Caminho principal. Único que roda o cron do `api/ping`, que mantém o projeto Supabase acordado |
+| **Vercel** | `vercel.json` (raiz) + `api/` + GitHub Actions | Caminho principal. Publica só depois dos testes, e é o único que roda o cron do `api/ping`, que mantém o projeto Supabase acordado |
 | **Netlify** | `netlify.toml` (raiz) | Alternativa sem cron. O projeto Supabase gratuito pode pausar por inatividade |
 | **Docker** | `deploy/docker/` | Servidor próprio ou VPS. Também sem cron |
 
@@ -17,6 +17,49 @@ procura. Nesta pasta fica só o que pode morar fora dela.
 Nos três casos as variáveis `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e (opcional)
 `VITE_WHATSAPP_NUMERO` são lidas **no build**, não em runtime: mudou o valor, precisa
 de build novo.
+
+---
+
+## ▲ Vercel com deploy pelo GitHub Actions
+
+Na Vercel, **só vai ao ar o que passou nos testes**. A integração Git da Vercel fica
+**desligada** (`"git": { "deploymentEnabled": false }` no `vercel.json`) e quem publica
+é o próprio CI (`.github/workflows/ci.yml`), no último job, depois de build, testes
+unitários e e2e passarem:
+
+| Push em | Vai para | Comandos |
+|---|---|---|
+| `dev` | **Preview** (URL própria) | `vercel pull` → `vercel build` → `vercel deploy --prebuilt` |
+| `main` | **Produção** | os mesmos, com `--prod` |
+| PR | nada é publicado | só os testes rodam |
+
+O deploy em si fica em `.github/workflows/deploy.yml`, chamado pelo `ci.yml`.
+
+> ⚠️ Com a integração Git desligada, **sem os três secrets abaixo nada é publicado** —
+> nem o preview, nem a produção. O CI passa, com o aviso "Deploy pulado". Configure os
+> secrets **antes** de mandar algo para a `main`.
+
+### Configurar os secrets (uma vez)
+
+Os três ficam no **GitHub**, nunca no código: repositório → **Settings → Secrets and
+variables → Actions → New repository secret**.
+
+| Secret | Onde pegar |
+|---|---|
+| `VERCEL_TOKEN` | vercel.com → avatar → **Account Settings → Tokens → Create**. Escopo: o time/conta do projeto. Copie na hora: ele não aparece de novo |
+| `VERCEL_ORG_ID` | No projeto, rode `npx vercel link` uma vez; o arquivo `.vercel/project.json` (ignorado pelo git) traz o `orgId`. Ou: Vercel → **Team/Account Settings → General → ID** |
+| `VERCEL_PROJECT_ID` | O `projectId` do mesmo `.vercel/project.json`. Ou: projeto na Vercel → **Settings → General → Project ID** |
+
+As `VITE_*` continuam nas **Environment Variables** da Vercel, marcadas para
+**Production** e **Preview**: o `vercel pull` as traz para o build do Actions.
+
+**Deu certo se:** depois de um push no `dev`, o job **Deploy** do CI fica verde e o
+resumo da execução mostra a URL do preview. Para publicar sem commit novo: aba
+**Actions → CI → Run workflow**, escolhendo `main` (produção) ou `dev` (preview).
+
+**Opcional, recomendado:** em **Settings → Branches → Add branch ruleset**, alvo `main`,
+marque **Require status checks to pass** com `Build`, `Testes unitários` e
+`Testes e2e`. Assim nem um merge pelo GitHub passa por cima de teste vermelho.
 
 ---
 

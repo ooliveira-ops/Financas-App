@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { criarSupabaseFalso } from '../fixtures/supabaseFalso.js'
 
@@ -9,7 +9,7 @@ vi.mock('../../src/supabase.js', () => ({ supabase: criarSupabaseFalso() }))
 
 const { AJUDA_CONTEUDO, BotaoAjuda } = await import('../../src/Ajuda.jsx')
 const { ModalConfirmar } = await import('../../src/ModalBase.jsx')
-const { CardResumo, CardSaldo, SeletorMes } = await import('../../src/App.jsx')
+const { BannerNovidades, CardResumo, CardSaldo, SeletorMes } = await import('../../src/App.jsx')
 
 const Icone = () => <svg/>
 const texto = (el) => el.textContent.replace(/\s/g, ' ')
@@ -117,6 +117,79 @@ describe('SeletorMes', () => {
     render(<SeletorMes meses={[]} valor="" onChange={() => {}}/>)
     expect(screen.getByText('Nenhum mês ainda.')).toBeTruthy()
     expect(screen.queryByRole('combobox')).toBeNull()
+  })
+})
+
+describe('BannerNovidades', () => {
+  const itens = ['🎯 Primeira novidade', '🐛 Segunda novidade']
+  const passar = (ms) => act(() => { vi.advanceTimersByTime(ms) })
+  const abrir = () => {
+    const onFechar = vi.fn()
+    render(<BannerNovidades itens={itens} onFechar={onFechar}/>)
+    return { onFechar, quadro: screen.getByRole('dialog', { name: 'Últimas atualizações' }) }
+  }
+
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('mostra os itens e fecha sozinho em 8 s se ninguém mexer', () => {
+    const { onFechar } = abrir()
+    for (const item of itens) expect(screen.getByText(item)).toBeTruthy()
+    // Em etapas: aos 7,5 s começa a animação de saída, e o React precisa renderizar
+    // entre um avanço e outro para agendar o fechamento.
+    passar(7500)
+    expect(onFechar).not.toHaveBeenCalled()
+    passar(400)
+    expect(onFechar).not.toHaveBeenCalled()
+    passar(100)
+    expect(onFechar).toHaveBeenCalledTimes(1)
+  })
+
+  it('fecha pelo X, que tem nome acessível', () => {
+    const { onFechar } = abrir()
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar novidades' }))
+    passar(500)
+    expect(onFechar).toHaveBeenCalledTimes(1)
+  })
+
+  it('fecha ao tocar fora do quadro, mas não ao tocar dentro', () => {
+    const { onFechar, quadro } = abrir()
+    fireEvent.click(screen.getByText(itens[0]))
+    passar(500)
+    expect(onFechar).not.toHaveBeenCalled()
+    fireEvent.click(quadro.parentElement)
+    passar(500)
+    expect(onFechar).toHaveBeenCalledTimes(1)
+  })
+
+  it('fecha com Esc', () => {
+    const { onFechar } = abrir()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    passar(500)
+    expect(onFechar).toHaveBeenCalledTimes(1)
+  })
+
+  it('tocar na lista cancela o fechamento automático', () => {
+    const { onFechar, quadro } = abrir()
+    passar(3000)
+    fireEvent.pointerDown(quadro)
+    passar(60_000)
+    expect(onFechar).not.toHaveBeenCalled()
+    expect(quadro.textContent).toContain('Toque no X ou fora do quadro para fechar.')
+    expect(quadro.textContent).not.toContain('Fecha sozinho')
+  })
+
+  it('rolar a lista também cancela o fechamento automático', () => {
+    const { onFechar } = abrir()
+    fireEvent.scroll(screen.getByText(itens[0]).closest('.overflow-y-auto'))
+    passar(60_000)
+    expect(onFechar).not.toHaveBeenCalled()
+  })
+
+  it('o quadro nunca passa da altura da tela e só a lista rola', () => {
+    const { quadro } = abrir()
+    expect(quadro.className).toContain('max-h-full')
+    expect(screen.getByText(itens[0]).closest('.overflow-y-auto')).toBeTruthy()
   })
 })
 

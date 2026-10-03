@@ -7,7 +7,7 @@ lê o `.env.local` nem fala com o banco de verdade.
 |---|---|---|
 | `unit/` | Lógica pura (`src/utils.js`, `src/calculos.js`, `src/dados.js`), componentes e o `App` inteiro (`*.test.jsx`), e a function `api/ping.js` — sempre com o Supabase mockado | **Vitest** + **Testing Library** |
 | `fixtures/` | `supabaseFalso.js`: cliente Supabase de mentira usado pelos testes | — |
-| `e2e/` | Fluxos completos no navegador (cadastro, dinheiro, parcelamento, RLS, admin, PDF) contra um **Supabase local** em Docker | **Playwright** |
+| `e2e/` | Fluxos completos no navegador (cadastro, dinheiro, parcelamento, RLS, admin, PDF, banner de novidades) contra um **Supabase local** em Docker | **Playwright** |
 
 ---
 
@@ -97,7 +97,12 @@ test('o que o usuário consegue fazer', async ({ page, dados }) => {
 - Conferência no banco pela chave de serviço: `dados.linhas('despesas', usuario.id)`.
   Acesso como o usuário (para testar RLS): `clienteDe(usuario)`.
 - Tela de celular conta: o mesmo teste roda no projeto `celular` (Pixel 7). Busque por
-  papel e nome (`getByRole`), que valem nos dois layouts.
+  papel e nome (`getByRole`), que valem nos dois layouts. Para layout, prefira
+  `toBeInViewport()` a `toBeVisible()`: elemento cortado fora da tela ainda é "visível".
+- **Tabela compartilhada entre usuários** (`novidades`) não se grava no teste: o que um
+  teste puser ali aparece para os outros que rodam em paralelo. Simule só na página do
+  teste com `page.route('**/rest/v1/novidades*', ...)` — o padrão está em
+  `e2e/novidades.spec.js`.
 
 ---
 

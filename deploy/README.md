@@ -29,8 +29,8 @@ unitários e e2e passarem:
 
 | Push em | Vai para | Comando |
 |---|---|---|
-| `dev` | **Preview** (URL própria) | `vercel deploy` |
-| `main` | **Produção** | `vercel deploy --prod` |
+| `dev` | **Preview** (URL própria) | `vercel` (o comando sozinho é o deploy) |
+| `main` | **Produção** | `vercel --prod` |
 | PR | nada é publicado | só os testes rodam |
 
 O deploy em si fica em `.github/workflows/deploy.yml`, chamado pelo `ci.yml`. O build de

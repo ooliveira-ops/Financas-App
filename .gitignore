@@ -7,8 +7,12 @@ dist-ssr
 .vscode
 .vite
 
-# Relatórios de teste
+# Relatórios e builds de teste
 coverage
+dist-e2e
+playwright-report
+test-results
+blob-report
 
 # ==================================================
 # DADOS SENSÍVEIS — NUNCA enviar pro GitHub
@@ -23,6 +27,7 @@ tokens.txt
 .env
 .env.*
 !.env.example
+!.env.test.example
 
 # Credenciais e segredos
 credenciais.json

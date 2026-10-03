@@ -57,12 +57,14 @@ src/
 
 api/ping.js                   # Keep-alive do projeto Supabase, chamado pelo cron da Vercel
 supabase/supabase-setup.sql   # Schema completo: tabelas, índices, RLS e funções
+supabase/config.toml          # Supabase local (CLI + Docker), usado pelos testes e2e
 deploy/docker/                # Dockerfile e nginx.conf, alternativa à Vercel
-tests/                        # Testes (Vitest + Testing Library) e o Supabase de mentira
+tests/                        # Testes unitários (Vitest) e e2e (Playwright)
+playwright.config.js          # Configuração dos testes e2e
 ```
 
 - [`api/`](api/README.md) — a function `ping` e o cron que a chama
-- [`supabase/`](supabase/README.md) — schema, tokens de convite, admin e novidades
+- [`supabase/`](supabase/README.md) — schema, Supabase local, tokens de convite, admin e novidades
 - [`deploy/`](deploy/README.md) — Vercel, Netlify ou Docker
 - [`tests/`](tests/README.md) — como rodar e escrever testes
 
@@ -223,6 +225,9 @@ Para rodar os testes unitários, que não precisam do `.env.local` nem do banco:
 npm test
 ```
 
+Os testes e2e (`npm run test:e2e`) usam um Supabase local em **Docker**; o passo a passo
+está em [`tests/`](tests/README.md#-testes-e2e).
+
 ---
 
 ### 🌐 Etapa 5 — Publicar
@@ -349,7 +354,7 @@ O relatório PDF segue a mesma lógica e traz o período em cada linha do resumo
 - Cada deploy tem **Supabase e tokens próprios e independentes**
 - O token é **verificado** antes do cadastro e **consumido** só depois de a conta ser criada com sucesso
 - Sem confirmar email: desative em Authentication → Providers → Email → "Confirm email"
-- Testes unitários com `npm test` (detalhes em [`tests/`](tests/README.md)). Eles cobrem os helpers de data e dinheiro, as contas de `src/calculos.js`, o login e o cadastro, e os fluxos principais do app com o banco simulado. Mudança de cálculo ainda deve ser conferida na interface
+- Testes unitários com `npm test` e e2e com `npm run test:e2e` (detalhes em [`tests/`](tests/README.md)). Os unitários cobrem as contas, o login e os fluxos do app com o banco simulado; os e2e rodam os fluxos principais no navegador contra um Supabase local, incluindo RLS e permissões de admin. Mudança de cálculo ainda deve ser conferida na interface
 
 ---
 

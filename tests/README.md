@@ -7,6 +7,7 @@ lê o `.env.local` nem fala com o banco de verdade.
 |---|---|---|
 | `unit/` | Lógica pura (`src/utils.js`, `src/calculos.js`, `src/dados.js`), componentes e o `App` inteiro (`*.test.jsx`), e a function `api/ping.js` — sempre com o Supabase mockado | **Vitest** + **Testing Library** |
 | `fixtures/` | `supabaseFalso.js`: cliente Supabase de mentira usado pelos testes | — |
+| `e2e/` | Fluxos completos no navegador (cadastro, dinheiro, parcelamento, RLS, admin, PDF) contra um **Supabase local** em Docker | **Playwright** |
 
 ---
 
@@ -17,6 +18,8 @@ lê o `.env.local` nem fala com o banco de verdade.
 | `npm test` | Roda todos os testes unitários uma vez |
 | `npm run test:watch` | Roda de novo a cada arquivo salvo, enquanto você programa |
 | `npm run test:coverage` | Roda com relatório de cobertura em `coverage/` (abra `coverage/index.html`) |
+| `npm run test:e2e` | Roda os e2e no Chromium, como desktop e como celular (precisa do Supabase local) |
+| `npm run test:e2e:ui` | Abre o modo visual do Playwright, para ver e depurar cada passo |
 
 A configuração fica na chave `test` do `vite.config.js`, não em arquivo próprio.
 
@@ -39,8 +42,70 @@ Não apague esse teste.
 
 ---
 
+## 🌐 Testes e2e
+
+Rodam o app de verdade no navegador contra um **Supabase local** criado a partir do
+próprio `supabase/supabase-setup.sql` — sem projeto na nuvem, sem segredo, sem tocar no
+banco de produção.
+
+**Pré-requisito:** **Docker** rodando (no Windows, o Docker Desktop aberto).
+
+```bash
+npx playwright install chromium   # uma vez só: baixa o navegador dos testes
+npx supabase start                # sobe o banco local (a 1ª vez baixa as imagens)
+npm run test:e2e
+npx supabase stop                 # quando terminar
+```
+
+**Deu certo se:** o terminal termina com `N passed`. Se falhar, o relatório fica em
+`playwright-report/` (`npx playwright show-report`), com print e trace de cada falha.
+
+Como funciona:
+
+- O `playwright.config.js` (raiz) lê URL e chaves do `npx supabase status` — ou das
+  variáveis de `.env.test.example`, se definidas — e **recusa** qualquer URL que não
+  seja `127.0.0.1`/`localhost`.
+- Antes de rodar, ele faz um build próprio (`npm run e2e:servidor` → `dist-e2e/`) com as
+  chaves do Supabase local e o serve na porta **4174**. O `.env.local` nunca é lido
+  (`envDir` do modo `e2e` no `vite.config.js`), e um servidor já aberto nunca é
+  reaproveitado.
+- O service worker do PWA fica bloqueado (`serviceWorkers: 'block'`), senão o cache
+  serviria uma build anterior.
+- O relógio do navegador fica parado em **15/03/2026 12:00** e o fuso em
+  `America/Sao_Paulo`, para meses e vencimentos não dependerem do dia em que se roda.
+- `preparar.js` espera o Supabase local responder antes do primeiro teste; `limpar.js`
+  apaga, no fim, qualquer usuário de teste que tenha escapado.
+
+### Escrever um teste e2e
+
+Importe de `e2e/apoio.js`, não de `@playwright/test`:
+
+```js
+import { aviso, card, entrar, expect, irPara, test } from './apoio.js'
+
+test('o que o usuário consegue fazer', async ({ page, dados }) => {
+  const usuario = await dados.usuario()                  // conta nova, só deste teste
+  await dados.inserir('receitas', [{ user_id: usuario.id, fonte: 'Salário', valor: 1000, mes: '2026-03' }])
+  await entrar(page, usuario)
+  await irPara(page, 'Início')
+  await expect(card(page, 'Saldo atual')).toContainText('R$ 1.000,00')
+})
+```
+
+- **Cada teste cria os próprios dados** pelo fixture `dados` (usuário, token, linhas) e
+  eles são apagados no fim, passe ou falhe. Nada de depender de outro teste ou da ordem.
+- Conferência no banco pela chave de serviço: `dados.linhas('despesas', usuario.id)`.
+  Acesso como o usuário (para testar RLS): `clienteDe(usuario)`.
+- Tela de celular conta: o mesmo teste roda no projeto `celular` (Pixel 7). Busque por
+  papel e nome (`getByRole`), que valem nos dois layouts.
+
+---
+
 ## ✍️ Escrever um teste novo
 
+- **Unitário ou e2e?** Conta, regra e componente → `unit/`. Fluxo que só faz sentido
+  com banco de verdade (RLS, trigger, RPC, cadastro, várias abas) → `e2e/`, em
+  `<fluxo>.spec.js`.
 - **Onde:** `tests/unit/`, espelhando o caminho do arquivo testado:
   `src/utils.js` → `tests/unit/utils.test.js`; `api/ping.js` → `tests/unit/api/ping.test.js`.
 - **Conta nova** (saldo, total, filtro, progresso) vai para `src/calculos.js` como função

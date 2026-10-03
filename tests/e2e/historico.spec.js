@@ -21,6 +21,14 @@ test('histórico abre no mês atual e navega entre os meses', async ({ page, dad
 
   await page.getByRole('combobox').selectOption('2026-03')
   await expect(page.getByRole('heading', { name: 'Março 2026' })).toBeVisible()
+
+  // As setas andam no tempo: do mês atual, "anterior" vai para fevereiro e "próximo" volta.
+  await expect(page.getByRole('button', { name: 'Próximo mês' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Mês anterior' }).click()
+  await expect(page.getByRole('heading', { name: 'Fevereiro 2026' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Mês anterior' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Próximo mês' }).click()
+  await expect(page.getByRole('heading', { name: 'Março 2026' })).toBeVisible()
 })
 
 test('relatório do mês em PDF é baixado', async ({ page, dados }) => {

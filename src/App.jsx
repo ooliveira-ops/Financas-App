@@ -891,15 +891,18 @@ const rotuloParcela = (d) =>
 // em tela estreita, empurra a lista de lançamentos para fora da primeira dobra.
 // O `select` nativo abre o seletor do próprio sistema no celular; as setas atendem
 // a navegação sequencial, que é o uso comum no desktop.
+// `meses` vem do mais recente para o mais antigo, então o mês anterior é o item seguinte
+// da lista. As setas andam só entre meses; "todos" se escolhe pelo seletor.
 export function SeletorMes({ meses, valor, onChange, incluirTodos = false, rotuloTodos = "Todos os meses" }) {
   const opcoes = incluirTodos ? ["todos", ...meses] : meses;
   if (opcoes.length === 0) return <p className="font-body text-slate-400/50 text-sm">Nenhum mês ainda.</p>;
-  const atual = opcoes.indexOf(valor);
-  const irPara = (delta) => { const alvo = opcoes[atual + delta]; if (alvo) onChange(alvo); };
+  const atual = meses.indexOf(valor);
+  const anterior = atual >= 0 ? meses[atual + 1] : undefined;
+  const proximo = atual > 0 ? meses[atual - 1] : undefined;
   const setaCls = "p-2 rounded-full bg-white/5 border border-blue-900/30 text-slate-300 transition-all enabled:hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed";
   return (
     <div className="flex items-center gap-2 w-full sm:w-auto">
-      <button onClick={() => irPara(-1)} disabled={atual <= 0} className={setaCls} aria-label="Mês anterior"><ChevronLeft size={16}/></button>
+      <button onClick={() => anterior && onChange(anterior)} disabled={!anterior} className={setaCls} aria-label="Mês anterior"><ChevronLeft size={16}/></button>
       <div className="relative flex-1 sm:flex-none">
         <select
           value={valor}
@@ -910,7 +913,7 @@ export function SeletorMes({ meses, valor, onChange, incluirTodos = false, rotul
         </select>
         <ChevronRight size={14} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-slate-400/50 pointer-events-none"/>
       </div>
-      <button onClick={() => irPara(1)} disabled={atual >= opcoes.length - 1} className={setaCls} aria-label="Próximo mês"><ChevronRight size={16}/></button>
+      <button onClick={() => proximo && onChange(proximo)} disabled={!proximo} className={setaCls} aria-label="Próximo mês"><ChevronRight size={16}/></button>
     </div>
   );
 }

@@ -116,11 +116,15 @@ O `.github/workflows/ci.yml` roda tudo isso sozinho em todo **pull request** e e
 | `build` | `npm ci` + `npm run build` | — |
 | `unit` | `npm run test:coverage` (falha se a cobertura cair abaixo do piso); a cobertura fica como artefato | `build` |
 | `e2e` | Sobe o Supabase local em Docker a partir do schema e roda `npm run test:e2e`; se falhar, o relatório e os traces ficam como artefato | `unit` |
+| `deploy` | Só em push (ou execução manual) de `dev`/`main`: publica na Vercel — preview ou produção. Detalhes em [`deploy/`](../deploy/README.md#-vercel-com-deploy-pelo-github-actions) | `e2e` |
 
-- **Nenhum segredo é usado**: o e2e roda contra o banco local do próprio runner. PR
-  vindo de fork, que não recebe secrets, roda igual.
-- Node **24** (LTS) e cache do npm e dos navegadores do Playwright.
-- Push novo no mesmo branch cancela a execução anterior.
+- **Os testes não usam segredo**: o e2e roda contra o banco local do próprio runner. PR
+  vindo de fork, que não recebe secrets, roda igual. Só o job `deploy` usa os secrets da
+  Vercel — e, sem eles, é pulado com aviso.
+- Node **24** (LTS), runner `ubuntu-24.04` fixo, e cache do npm e dos navegadores do
+  Playwright.
+- Push novo no mesmo branch cancela a execução anterior — menos na `main`, para não
+  interromper um deploy de produção.
 - O runner roda em **UTC**; os testes de data já cobrem esse fuso.
 
 **Onde ver:** aba **Actions** do repositório. Execução que falhou → job vermelho →

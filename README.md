@@ -236,14 +236,18 @@ está em [`tests/`](tests/README.md#-testes-e2e).
 
 1. Acesse [vercel.com](https://vercel.com) e conecte o GitHub
 2. **Import Project** → selecione o repositório
-3. Adicione as **Environment Variables** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e `VITE_WHATSAPP_NUMERO`, se for usar)
-4. **Deploy**
+3. Adicione as **Environment Variables** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` e `VITE_WHATSAPP_NUMERO`, se for usar), marcadas para **Production** e **Preview**
+4. Cadastre no GitHub os secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID` — passo a passo em [`deploy/`](deploy/README.md#-vercel-com-deploy-pelo-github-actions)
+5. No GitHub, **Actions → CI → Run workflow** no branch `main`
 
-> Branches diferentes da `main` geram Preview Deployments automáticos com URL própria.
-> Por padrão a Vercel protege esses previews: abri-los exige estar logado na conta, ou
-> gerar um link de compartilhamento pelo botão **Share** do deployment. As variáveis de
-> ambiente também precisam estar marcadas para o ambiente **Preview** — marcadas só em
-> Production, o preview sobe sem as chaves e abre em tela branca.
+**Deu certo se:** o job **Deploy** do CI ficou verde e mostra a URL publicada.
+
+> A publicação não é feita pela Vercel a cada push: quem publica é o **GitHub Actions**,
+> e só depois de build e testes passarem (`dev` → preview, `main` → produção). Sem os
+> secrets do passo 4, nada vai ao ar.
+> Os previews são protegidos pela Vercel: abri-los exige estar logado na conta, ou gerar
+> um link pelo botão **Share** do deployment. Com as variáveis marcadas só em Production,
+> o preview sobe sem as chaves e abre em tela branca.
 
 O `vercel.json` também configura um **cron** que chama `/api/ping` a cada 3 dias, para o
 projeto Supabase não ser pausado por inatividade. Esse endpoint usa a função `ping()` do

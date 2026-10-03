@@ -1,0 +1,77 @@
+# Publica na Vercel. Não roda sozinho: o ci.yml o chama só depois de build, unitários e
+# e2e passarem — é isso que garante que nada vai ao ar sem teste. A integração Git da
+# Vercel fica desligada (git.deploymentEnabled no vercel.json) para não publicar antes.
+#
+# Precisa dos secrets VERCEL_TOKEN, VERCEL_ORG_ID e VERCEL_PROJECT_ID (passo a passo em
+# deploy/README.md). Sem eles o deploy é pulado com um aviso, sem falhar o CI — caso de
+# quem clonou e ainda não configurou, e de PR vindo de fork.
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      ambiente:
+        description: "preview ou production"
+        required: true
+        type: string
+    secrets:
+      VERCEL_TOKEN:
+        required: false
+      VERCEL_ORG_ID:
+        required: false
+      VERCEL_PROJECT_ID:
+        required: false
+
+jobs:
+  vercel:
+    name: Vercel (${{ inputs.ambiente }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      AMBIENTE: ${{ inputs.ambiente }}
+      ALVO: ${{ inputs.ambiente == 'production' && '--prod' || '' }}
+    steps:
+      - name: Confere os secrets da Vercel
+        id: secrets
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "::warning title=Deploy pulado::Faltam os secrets VERCEL_TOKEN, VERCEL_ORG_ID ou VERCEL_PROJECT_ID. Nada foi publicado — veja deploy/README.md."
+            echo "configurados=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configurados=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.secrets.outputs.configurados == 'true'
+        uses: actions/checkout@v7
+      - if: steps.secrets.outputs.configurados == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - if: steps.secrets.outputs.configurados == 'true'
+        run: npm ci
+      # Versão principal fixa: uma major nova do CLI não muda o pipeline sem aviso.
+      - if: steps.secrets.outputs.configurados == 'true'
+        run: npm install --global vercel@62
+
+      # Traz as configurações do projeto e as VITE_* do ambiente (Preview ou Production)
+      # cadastradas na Vercel: o build roda aqui, com elas.
+      - name: Baixa as configurações da Vercel
+        if: steps.secrets.outputs.configurados == 'true'
+        run: vercel pull --yes --environment="$AMBIENTE" --token="$VERCEL_TOKEN"
+      - name: Build
+        if: steps.secrets.outputs.configurados == 'true'
+        run: vercel build $ALVO --token="$VERCEL_TOKEN"
+      - name: Publica
+        if: steps.secrets.outputs.configurados == 'true'
+        run: |
+          url=$(vercel deploy --prebuilt $ALVO --token="$VERCEL_TOKEN")
+          echo "Publicado ($AMBIENTE): $url"
+          {
+            echo "### Deploy na Vercel ($AMBIENTE)"
+            echo ""
+            echo "$url"
+          } >> "$GITHUB_STEP_SUMMARY"

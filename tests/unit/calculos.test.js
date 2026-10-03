@@ -5,6 +5,7 @@ import {
   grupoDaDespesa, mesesComDespesas, mesesDoHistorico, montarDespesas, pagasNoMes, pendentesAnteriores,
   pendentesDoMes, pendentesPorVencimento, progressoParcelamento, proximasAssinaturas, receitasDoMes,
   resumoGrupo, separarPorStatus, somaValores, textoParcela, totaisPagoPendente,
+  estaConcluido, podeConcluir, separarParcelamentos,
 } from '../../src/calculos.js'
 
 let proximoId = 1
@@ -409,6 +410,33 @@ describe('parcelas', () => {
 
     it('null quando o parcelamento não tem despesa vinculada', () => {
       expect(progressoParcelamento(doParcelamento(), 'outro')).toBeNull()
+    })
+  })
+
+  describe('parcelamento concluído', () => {
+    const quitado = { id: 'a', status: 'finalizado', concluido: false }
+    const arquivado = { id: 'b', status: 'finalizado', concluido: true }
+    const pagando = { id: 'c', status: 'ativo', concluido: false }
+    // Marcado, mas uma parcela paga foi apagada depois: voltou a ter pendência.
+    const reaberto = { id: 'd', status: 'ativo', concluido: true }
+
+    it('só conta como concluído se estiver marcado e quitado', () => {
+      expect([quitado, arquivado, pagando, reaberto].map(estaConcluido)).toEqual([false, true, false, false])
+    })
+
+    it('só pode concluir o que está quitado e ainda não foi concluído', () => {
+      expect([quitado, arquivado, pagando, reaberto].map(podeConcluir)).toEqual([true, false, false, false])
+    })
+
+    it('separa a lista dos concluídos, e o que voltou a ter pendência fica na lista', () => {
+      const { naLista, concluidos } = separarParcelamentos([quitado, arquivado, pagando, reaberto])
+      expect(naLista.map(p => p.id)).toEqual(['a', 'c', 'd'])
+      expect(concluidos.map(p => p.id)).toEqual(['b'])
+    })
+
+    it('coluna ausente (banco sem a migração) conta como não concluído', () => {
+      expect(estaConcluido({ status: 'finalizado' })).toBe(false)
+      expect(podeConcluir({ status: 'finalizado' })).toBe(true)
     })
   })
 

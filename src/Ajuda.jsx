@@ -55,6 +55,7 @@ export const AJUDA_CONTEUDO = {
       "Ao salvar, o app já cria uma despesa para cada parcela, com o vencimento de cada mês.",
       "Cada parcela paga sai do saldo uma vez só, seja marcada aqui ou na aba Despesas.",
       "Use 'Marcar próxima como paga' para quitar a próxima parcela. Um aviso confirma qual parcela foi paga; cada clique paga mais uma.",
+      "Com todas as parcelas pagas, aparece 'Marcar como concluído': o parcelamento sai da lista e fica guardado em 'Concluídos', no fim da tela. De lá dá para reabrir ou apagar. As despesas das parcelas não mudam.",
     ],
   },
   grafico: {

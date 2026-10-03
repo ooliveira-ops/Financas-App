@@ -186,6 +186,90 @@ describe('App com o Supabase mockado', () => {
     })
   })
 
+  describe('concluir parcelamento', () => {
+    const PIZZA = { id: 'p1', user_id: USUARIO, descricao: 'Pizza', valor_total: 60, parcelas_total: 1, parcelas_pagas: 1, valor_pago: 60, status: 'finalizado', concluido: false, proxima_parcela_data: '2026-03-01' }
+    const OCULOS = { id: 'p2', user_id: USUARIO, descricao: 'Óculos', valor_total: 900, parcelas_total: 3, parcelas_pagas: 1, valor_pago: 300, status: 'ativo', concluido: false, proxima_parcela_data: '2026-04-01' }
+    const comParcelamentos = (...lista) => ({ ...bancoInicial(), parcelamentos: lista })
+    // Update de parcelamento devolve a linha com o que foi gravado.
+    const gravaParcelamento = (c) => {
+      if (c.tabela !== 'parcelamentos' || !c.tem('update')) return undefined
+      const [, id] = c.args('eq')
+      const atual = [PIZZA, OCULOS].find(p => p.id === id)
+      return { data: { ...atual, ...c.args('update')[0] }, error: null }
+    }
+    const irParaParcelamentos = async () => {
+      await user.click(screen.getByRole('button', { name: 'Parcelamentos' }))
+      await screen.findByRole('heading', { name: 'Óculos' })
+    }
+
+    it('só o quitado oferece "Marcar como concluído", e concluir tira da lista', async () => {
+      estado.cliente = criarCliente({ banco: comParcelamentos(PIZZA, OCULOS), escrita: gravaParcelamento })
+      await abrirApp()
+      await irParaParcelamentos()
+
+      expect(screen.getAllByRole('button', { name: 'Marcar como concluído' })).toHaveLength(1)
+      await user.click(screen.getByRole('button', { name: 'Marcar como concluído' }))
+
+      expect(await screen.findByText(/"Pizza" concluído/)).toBeTruthy()
+      const [gravacao] = estado.cliente.na('parcelamentos', 'update')
+      expect(gravacao.args('update')).toEqual([{ concluido: true }])
+      expect(gravacao.args('eq')).toEqual(['id', 'p1'])
+      expect(gravacao.tem('select') && gravacao.tem('maybeSingle')).toBe(true)
+
+      expect(screen.queryByRole('heading', { name: 'Pizza' })).toBeNull()
+      expect(screen.getByRole('heading', { name: 'Óculos' })).toBeTruthy()
+      const recolhido = screen.getByRole('button', { name: /Concluídos \(1\)/ })
+      expect(recolhido.getAttribute('aria-expanded')).toBe('false')
+      await user.click(recolhido)
+      expect(screen.getByText('Pizza')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Reabrir' })).toBeTruthy()
+    })
+
+    it('reabrir devolve o parcelamento à lista', async () => {
+      estado.cliente = criarCliente({ banco: comParcelamentos({ ...PIZZA, concluido: true }, OCULOS), escrita: gravaParcelamento })
+      await abrirApp()
+      await irParaParcelamentos()
+
+      expect(screen.queryByRole('heading', { name: 'Pizza' })).toBeNull()
+      await user.click(screen.getByRole('button', { name: /Concluídos \(1\)/ }))
+      await user.click(screen.getByRole('button', { name: 'Reabrir' }))
+
+      expect(await screen.findByText(/"Pizza" voltou para a lista/)).toBeTruthy()
+      expect(estado.cliente.na('parcelamentos', 'update')[0].args('update')).toEqual([{ concluido: false }])
+      expect(screen.getByRole('heading', { name: 'Pizza' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /Concluídos/ })).toBeNull()
+    })
+
+    it('update barrado (0 linhas) avisa e não tira da lista', async () => {
+      estado.cliente = criarCliente({
+        banco: comParcelamentos(PIZZA, OCULOS),
+        escrita: (c) => (c.tabela === 'parcelamentos' && c.tem('update') ? { data: null, error: null } : undefined),
+      })
+      await abrirApp()
+      await irParaParcelamentos()
+
+      await user.click(screen.getByRole('button', { name: 'Marcar como concluído' }))
+      expect(await screen.findByText(/O parcelamento não foi atualizado/)).toBeTruthy()
+      expect(screen.getByRole('heading', { name: 'Pizza' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /Concluídos/ })).toBeNull()
+    })
+
+    it('banco sem a coluna nova: o erro diz qual migração rodar', async () => {
+      estado.cliente = criarCliente({
+        banco: comParcelamentos(PIZZA, OCULOS),
+        escrita: (c) => (c.tabela === 'parcelamentos' && c.tem('update')
+          ? { data: null, error: { message: "Could not find the 'concluido' column of 'parcelamentos' in the schema cache" } }
+          : undefined),
+      })
+      await abrirApp()
+      await irParaParcelamentos()
+
+      await user.click(screen.getByRole('button', { name: 'Marcar como concluído' }))
+      expect(await screen.findByText(/Rode no Supabase as migrações do supabase\/supabase-setup\.sql/)).toBeTruthy()
+      expect(screen.getByRole('heading', { name: 'Pizza' })).toBeTruthy()
+    })
+  })
+
   describe('nova despesa', () => {
     it('categoria deixada em branco no select vai como null no insert', async () => {
       estado.cliente = criarCliente({

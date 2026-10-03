@@ -20,6 +20,7 @@ import {
   faturasDoCartao, mesesComDespesas, pendentesAnteriores as calcularPendentesAnteriores,
   filtrarDespesas, agruparPorMes, textoParcela, grupoDaDespesa, resumoGrupo, montarDespesas,
   pendentesPorVencimento, progressoParcelamento, avancoSemDespesas, despesasDeAssinaturas,
+  podeConcluir, separarParcelamentos,
 } from "./calculos";
 import { buscarTodos as buscarTodosDoBanco } from "./dados";
 
@@ -410,6 +411,21 @@ function AppLogado({ session }) {
     setParcelamentos(prev => prev.map(p => p.id === id ? data : p));
     notificar(`Parcela ${avanco.parcelas_pagas}/${parc.parcelas_total} de "${parc.descricao}" marcada como paga.`, "sucesso");
   });
+  // Concluir só arquiva o acompanhamento: o dinheiro já saiu do saldo pelas despesas, que
+  // continuam onde estão. Reabrir devolve o parcelamento à lista.
+  const definirConcluido = (id, concluido) => comTrava(`concluir-${id}`, async () => {
+    const parc = parcelamentos.find(p => p.id === id);
+    if (!parc) return;
+    if (concluido && !podeConcluir(parc)) return notificar("Só dá para concluir depois de pagar todas as parcelas.", "info");
+    const { data, error } = await supabase.from("parcelamentos").update({ concluido }).eq("id", id).select().maybeSingle();
+    if (error) {
+      const semColuna = error.message?.includes("concluido") ? " Rode no Supabase as migrações do supabase/supabase-setup.sql." : "";
+      return notificar(`Não foi possível ${concluido ? "concluir" : "reabrir"} o parcelamento: ${error.message}.${semColuna}`);
+    }
+    if (!data) return notificar("O parcelamento não foi atualizado. Recarregue a página e tente de novo.");
+    setParcelamentos(prev => prev.map(p => p.id === id ? data : p));
+    notificar(concluido ? `"${parc.descricao}" concluído e guardado em Concluídos.` : `"${parc.descricao}" voltou para a lista.`, "sucesso");
+  });
   const removerParcelamento = (id) => pedirConfirmacao("Apagar este parcelamento? As despesas das parcelas continuam na lista.", async () => {
     const alvo = parcelamentos.find(p => p.id === id);
     const { error } = await supabase.from("parcelamentos").delete().eq("id", id);
@@ -644,7 +660,7 @@ function AppLogado({ session }) {
           </Suspense>
         )}
         {aba === "historico" && <HistoricoAba despesas={despesas} assinaturas={assinaturas} receitas={receitas} parcelamentos={parcelamentos} userNome={userNome} onAviso={notificar}/>}
-        {aba === "parcelamentos" && <ParcelamentosAba parcelamentos={parcelamentos} categorias={categorias} emAndamento={emAndamento} onAdicionar={() => setModalParcelamento(true)} onRemover={removerParcelamento} onMarcarPaga={marcarParcelaComoPaga}/>}
+        {aba === "parcelamentos" && <ParcelamentosAba parcelamentos={parcelamentos} categorias={categorias} emAndamento={emAndamento} onAdicionar={() => setModalParcelamento(true)} onRemover={removerParcelamento} onMarcarPaga={marcarParcelaComoPaga} onConcluir={id => definirConcluido(id, true)} onReabrir={id => definirConcluido(id, false)}/>}
         {aba === "receitas" && <ReceitasAba receitas={receitas} totalReceitasMes={totalReceitasMes} onAdicionar={() => setModalReceita(true)} onRemover={removerReceita}/>}
         {aba === "assinaturas" && <AssinaturasAba assinaturas={proximasAssinaturas} total={totalAssinaturasMes} onAdicionar={() => setModalAssinatura(true)} onRemover={removerAssinatura}/>}
         {aba === "usuarios" && isAdmin && <UsuariosAba onAviso={notificar}/>}
@@ -1267,8 +1283,10 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, emAndamento
 }
 
 // ── PARCELAMENTOS ─────────────────────────────────────────────────────────────────
-function ParcelamentosAba({ parcelamentos, categorias, emAndamento, onAdicionar, onRemover, onMarcarPaga }) {
+function ParcelamentosAba({ parcelamentos, categorias, emAndamento, onAdicionar, onRemover, onMarcarPaga, onConcluir, onReabrir }) {
   const ativos = parcelamentos.filter(p=>p.status==="ativo");
+  const { naLista, concluidos } = separarParcelamentos(parcelamentos);
+  const [verConcluidos, setVerConcluidos] = useState(false);
   return (
     <div className="space-y-8 animate-fadeInUp">
       <div className="flex items-end justify-between">
@@ -1276,11 +1294,11 @@ function ParcelamentosAba({ parcelamentos, categorias, emAndamento, onAdicionar,
         <button onClick={onAdicionar} className="px-4 py-2.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-body text-sm flex items-center gap-2 transition-all"><Plus size={14}/>Novo</button>
       </div>
       <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl">
-        {parcelamentos.length===0?<div className="p-12 text-center"><p className="font-body text-slate-400/40">Nenhum parcelamento</p></div>:(
+        {naLista.length===0?<div className="p-12 text-center"><p className="font-body text-slate-400/40">{parcelamentos.length===0?"Nenhum parcelamento":"Nenhum parcelamento em andamento"}</p></div>:(
           <div className="divide-y divide-blue-900/20">
-            {parcelamentos.map(p=>{const pct=(p.parcelas_pagas/p.parcelas_total)*100;const vp=dividirEmParcelas(p.valor_total,p.parcelas_total)[0];return(
+            {naLista.map(p=>{const pct=(p.parcelas_pagas/p.parcelas_total)*100;const vp=dividirEmParcelas(p.valor_total,p.parcelas_total)[0];return(
               <div key={p.id} className="p-6 hover:bg-white/[0.02] transition">
-                <div className="flex items-start justify-between mb-4"><div><h3 className="font-body text-lg text-slate-100">{p.descricao}</h3><p className="font-mono-c text-[10px] text-slate-400/50 mt-1">Próx: {formatarDataBR(p.proxima_parcela_data)}</p></div><button onClick={()=>onRemover(p.id)} className="text-slate-400/30 hover:text-red-400"><Trash2 size={14}/></button></div>
+                <div className="flex items-start justify-between mb-4"><div><h3 className="font-body text-lg text-slate-100">{p.descricao}</h3><p className="font-mono-c text-[10px] text-slate-400/50 mt-1">Próx: {formatarDataBR(p.proxima_parcela_data)}</p></div><button onClick={()=>onRemover(p.id)} className="text-slate-400/30 hover:text-red-400" aria-label={`Apagar ${p.descricao}`}><Trash2 size={14}/></button></div>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div><p className="font-mono-c text-[10px] text-slate-400/50 mb-1">VALOR TOTAL</p><p className="font-mono-c num-tabular text-sky-300">{formatBRL(p.valor_total)}</p></div>
                   <div><p className="font-mono-c text-[10px] text-slate-400/50 mb-1">JÁ PAGO</p><p className="font-mono-c num-tabular text-emerald-400">{formatBRL(p.valor_pago||0)}</p></div>
@@ -1289,11 +1307,28 @@ function ParcelamentosAba({ parcelamentos, categorias, emAndamento, onAdicionar,
                 </div>
                 <div className="w-full bg-blue-900/30 rounded-full h-2 mb-3 overflow-hidden"><div className="bg-blue-500 h-full transition-all" style={{width:`${pct}%`}}/></div>
                 {p.parcelas_pagas<p.parcelas_total&&<button onClick={()=>onMarcarPaga(p.id)} disabled={emAndamento.includes(p.id)} className="w-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 py-2 rounded-xl font-body text-sm enabled:hover:bg-emerald-500/25 disabled:opacity-50 transition flex items-center justify-center gap-2">{emAndamento.includes(p.id)?<><Loader2 size={14} className="animate-spin"/>Pagando...</>:<><Check size={14}/>Marcar próxima como paga</>}</button>}
+                {podeConcluir(p)&&<button onClick={()=>onConcluir(p.id)} disabled={emAndamento.includes(`concluir-${p.id}`)} className="w-full bg-blue-500/15 text-blue-200 border border-blue-500/30 py-2 rounded-xl font-body text-sm enabled:hover:bg-blue-500/25 disabled:opacity-50 transition flex items-center justify-center gap-2">{emAndamento.includes(`concluir-${p.id}`)?<><Loader2 size={14} className="animate-spin"/>Concluindo...</>:<><CheckCircle2 size={14}/>Marcar como concluído</>}</button>}
               </div>
             );})}
           </div>
         )}
       </div>
+      {/* Concluídos ficam recolhidos: saem da lista sem sumir, e dá para reabrir. */}
+      {concluidos.length>0&&(
+        <div className="bg-[#0d1829] border border-blue-900/30 rounded-2xl">
+          <button onClick={()=>setVerConcluidos(v=>!v)} aria-expanded={verConcluidos} className="w-full px-6 py-4 flex items-center justify-between font-body text-sm text-slate-300 hover:bg-white/[0.02] rounded-2xl transition">
+            <span className="flex items-center gap-2"><CheckCircle2 size={15} className="text-emerald-400"/>Concluídos ({concluidos.length})</span>
+            <ChevronDown size={16} className={`text-slate-400/60 transition-transform ${verConcluidos?"rotate-180":""}`}/>
+          </button>
+          {verConcluidos&&<div className="divide-y divide-blue-900/20 border-t border-blue-900/20">{concluidos.map(p=>(
+            <div key={p.id} className="px-6 py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0"><p className="font-body text-sm text-slate-200 truncate">{p.descricao}</p><p className="font-mono-c num-tabular text-[10px] text-slate-400/50 mt-0.5">{p.parcelas_total}x · {formatBRL(p.valor_total)}</p></div>
+              <button onClick={()=>onReabrir(p.id)} disabled={emAndamento.includes(`concluir-${p.id}`)} className="px-3 py-1.5 rounded-full font-body text-xs bg-white/[0.04] border border-blue-900/40 text-slate-300 enabled:hover:bg-white/[0.08] disabled:opacity-50 transition">Reabrir</button>
+              <button onClick={()=>onRemover(p.id)} className="p-2 -m-1 text-slate-400/40 hover:text-red-400" aria-label={`Apagar ${p.descricao}`}><Trash2 size={14}/></button>
+            </div>
+          ))}</div>}
+        </div>
+      )}
     </div>
   );
 }

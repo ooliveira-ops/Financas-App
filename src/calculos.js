@@ -238,6 +238,16 @@ export const progressoParcelamento = (despesas, parcelamentoId) => {
   };
 };
 
+// Concluído é o parcelamento quitado que o usuário tirou da lista. A marca só vale com
+// tudo pago: se uma parcela paga for apagada, ele volta sozinho para a lista.
+export const estaConcluido = (p) => Boolean(p.concluido) && p.status === "finalizado";
+export const podeConcluir = (p) => p.status === "finalizado" && !p.concluido;
+
+export const separarParcelamentos = (parcelamentos) => ({
+  naLista: parcelamentos.filter(p => !estaConcluido(p)),
+  concluidos: parcelamentos.filter(estaConcluido),
+});
+
 // Parcelamento antigo, sem despesa vinculada, avança pelo contador próprio: não há
 // parcela para marcar. A última parcela fecha no total exato, para não sobrar nem
 // faltar centavo.

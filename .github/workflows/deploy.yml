@@ -58,10 +58,12 @@ jobs:
       - if: steps.secrets.outputs.configurados == 'true'
         run: npm install --global vercel@62
 
+      # `vercel` sozinho é o deploy. Escrito `vercel deploy`, o CLI confunde o comando com
+      # a pasta deploy/ do repositório.
       - name: Publica (build na Vercel)
         if: steps.secrets.outputs.configurados == 'true'
         run: |
-          url=$(vercel deploy $ALVO --yes --token="$VERCEL_TOKEN")
+          url=$(vercel $ALVO --yes --token="$VERCEL_TOKEN")
           echo "Publicado ($AMBIENTE): $url"
           {
             echo "### Deploy na Vercel ($AMBIENTE)"

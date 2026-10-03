@@ -74,18 +74,29 @@ describe('SeletorMes', () => {
     expect(screen.getByRole('option', { name: 'Fevereiro 2026' }).selected).toBe(true)
   })
 
-  it('as setas andam pela lista e travam nas pontas', async () => {
+  it('"Mês anterior" volta no tempo e "Próximo mês" avança', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
-    const { rerender } = render(<SeletorMes meses={meses} valor="2026-02" onChange={onChange}/>)
+    render(<SeletorMes meses={meses} valor="2026-02" onChange={onChange}/>)
 
     await user.click(screen.getByRole('button', { name: 'Mês anterior' }))
     await user.click(screen.getByRole('button', { name: 'Próximo mês' }))
-    expect(onChange.mock.calls).toEqual([['2026-03'], ['2026-01']])
+    expect(onChange.mock.calls).toEqual([['2026-01'], ['2026-03']])
+  })
 
-    rerender(<SeletorMes meses={meses} valor="2026-03" onChange={onChange}/>)
+  it('as setas travam no mês mais antigo e no mais recente', () => {
+    const { rerender } = render(<SeletorMes meses={meses} valor="2026-03" onChange={() => {}}/>)
+    expect(screen.getByRole('button', { name: 'Próximo mês' }).disabled).toBe(true)
+    expect(screen.getByRole('button', { name: 'Mês anterior' }).disabled).toBe(false)
+
+    rerender(<SeletorMes meses={meses} valor="2026-01" onChange={() => {}}/>)
     expect(screen.getByRole('button', { name: 'Mês anterior' }).disabled).toBe(true)
-    rerender(<SeletorMes meses={meses} valor="2026-01" onChange={onChange}/>)
+    expect(screen.getByRole('button', { name: 'Próximo mês' }).disabled).toBe(false)
+  })
+
+  it('com "todos" selecionado as setas ficam desabilitadas', () => {
+    render(<SeletorMes meses={meses} valor="todos" onChange={() => {}} incluirTodos/>)
+    expect(screen.getByRole('button', { name: 'Mês anterior' }).disabled).toBe(true)
     expect(screen.getByRole('button', { name: 'Próximo mês' }).disabled).toBe(true)
   })
 

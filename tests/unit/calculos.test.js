@@ -5,7 +5,7 @@ import {
   grupoDaDespesa, mesesComDespesas, mesesDoHistorico, montarDespesas, pagasNoMes, pendentesAnteriores,
   pendentesDoMes, pendentesPorVencimento, progressoParcelamento, proximasAssinaturas, receitasDoMes,
   resumoGrupo, separarPorStatus, somaValores, textoParcela, totaisPagoPendente,
-  estaConcluido, podeConcluir, separarParcelamentos,
+  estaConcluido, podeConcluir, separarParcelamentos, saldoBruto, ajusteParaSaldo,
 } from '../../src/calculos.js'
 
 let proximoId = 1
@@ -69,6 +69,27 @@ describe('saldo acumulado', () => {
   it('ajuste negativo que zera as receitas também deixa o saldo null', () => {
     const receitas = [receita('2026-01', 100), receita('2026-01', -100, { fonte: FONTE_AJUSTE })]
     expect(calcularSaldo(receitas, []).saldo).toBeNull()
+  })
+})
+
+describe('acerto do saldo com o banco', () => {
+  it('saldoBruto é receitas menos pagas, mesmo sem receita', () => {
+    expect(saldoBruto([receita('2026-03', 100)], [paga('2026-03-01', { valor: 30 })])).toBe(70)
+    expect(saldoBruto([], [paga('2026-03-01', { valor: 30 })])).toBe(-30)
+    expect(saldoBruto([receita('2026-03', 0.1), receita('2026-03', 0.2)], [])).toBe(0.3)
+  })
+
+  it('o ajuste leva o saldo calculado exatamente ao valor real', () => {
+    // Caso real: saldo inicial lançado com o valor de hoje, saldo atual dobrou.
+    expect(ajusteParaSaldo(946.26, 1892.52)).toBe(-946.26)
+    expect(ajusteParaSaldo(1000, 999.99)).toBe(0.01)
+    expect(ajusteParaSaldo(500, 500)).toBe(0)
+  })
+
+  it('o ajuste somado ao saldo dá o valor real, em centavos', () => {
+    for (const [real, calculado] of [[946.27, 2487.78], [0, 123.45], [-50.1, 10.2]]) {
+      expect(Math.round((calculado + ajusteParaSaldo(real, calculado)) * 100)).toBe(Math.round(real * 100))
+    }
   })
 })
 

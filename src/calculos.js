@@ -37,6 +37,14 @@ export const calcularSaldo = (receitas, pagas) => {
   return { totalReceitas, temReceita, saldo: temReceita ? totalReceitas - somaValores(pagas) : null };
 };
 
+// Saldo atual como número mesmo sem receita (quando `calcularSaldo` devolve null): é a
+// base para registrar o valor real que o usuário tem hoje.
+export const saldoBruto = (receitas, pagas) => Math.round((somaValores(receitas) - somaValores(pagas)) * 100) / 100;
+
+// Diferença, em centavos exatos, que um ajuste precisa ter para o saldo calculado virar o
+// valor real informado.
+export const ajusteParaSaldo = (valorReal, saldoCalculado) => Math.round((valorReal - saldoCalculado) * 100) / 100;
+
 // SALDO DO MÊS: só o que entrou e o que foi pago dentro do mês, sem herdar o que sobrou
 // dos meses anteriores. `null` quando o mês não tem movimento.
 export const calcularSaldoMes = (totalReceitasMes, totalPagasMes) => {

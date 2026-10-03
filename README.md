@@ -9,7 +9,7 @@ App de controle financeiro pessoal com receitas, despesas parceladas, categorias
 ## Funcionalidades
 
 - **Acesso por tokens** — convite com tokens únicos, sem cadastro aberto
-- **Despesas** — pendentes vs pagas, com vencimento, categorias e seletor de mês. Por padrão a lista mostra todos os meses, para que uma conta atrasada não desapareça na virada, agrupada por período e com o subtotal de cada mês
+- **Despesas** — pendentes vs pagas, com vencimento, categorias e seletor de mês. Por padrão a lista mostra todos os meses, para que uma conta atrasada não desapareça na virada, agrupada por período e com o subtotal de cada mês. O saldo atual aparece no topo da aba e cai na hora em que uma despesa é paga
 - **Parcelamento de despesa** — informe o valor total e o número de vezes; o app cria uma despesa por mês e divide em centavos exatos, com a última parcela absorvendo o arredondamento
 - **Parcelamentos** — compras grandes divididas em várias vezes: o app cria uma despesa por parcela e a aba mostra o progresso de pagamento com barra e próxima data. Quitar uma parcela em qualquer uma das duas telas atualiza a outra, porque o progresso é recalculado a partir das despesas em vez de contado à parte. Depois de quitado, o parcelamento pode ser marcado como **concluído** e sai da lista para uma seção recolhida, de onde dá para reabrir
 - **Assinaturas recorrentes** — a despesa do mês é gerada automaticamente no dia de vencimento escolhido
@@ -328,6 +328,8 @@ Os valores da Home não têm todos o mesmo período, e cada card indica o seu es
 | Saldo acumulado | receitas − despesas pagas, de todo o histórico |
 
 Por isso `Receitas − Pago` não é igual ao Saldo: os dois primeiros são do mês, o saldo é acumulado. É esse acúmulo que faz o dinheiro que sobrou de um mês continuar disponível no mês seguinte.
+
+Quando o saldo não bate com o banco (receita antiga não lançada, conta paga e não marcada), o card **Saldo inicial** mostra a composição e oferece dois acertos: **Registrar saldo atual** (quanto se tem hoje no banco) ou **Saldo do início do mês** (quanto se tinha no dia 1º — o que já estava na conta, não uma receita do mês). Os dois gravam a diferença como uma **correção do saldo** de antes do mês: por dentro, uma receita "Ajuste de saldo" lançada no mês anterior. Assim as receitas e o pago do mês continuam mostrando só o que aconteceu nele, e apagar a correção a desfaz.
 
 Parcelamentos entram nessa conta pelas despesas — uma por parcela, criadas junto com o parcelamento — e não pelo campo "já pago" da aba Parcelamentos, que serve apenas para mostrar progresso. Somar os dois contaria o mesmo dinheiro duas vezes.
 

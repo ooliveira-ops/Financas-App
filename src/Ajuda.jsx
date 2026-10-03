@@ -9,7 +9,8 @@ export const AJUDA_CONTEUDO = {
     explicacao: "A Home mostra o mês em sequência: com quanto ele começou (saldo inicial), quanto entrou (receitas), quanto já foi pago e com quanto você está agora (saldo atual). Ao lado, quanto ainda falta pagar somando todos os meses. Também mostra suas próximas assinaturas e permite gerar um relatório em PDF.",
     passos: [
       "Cadastre suas receitas do mês na aba Receitas para o saldo aparecer aqui.",
-      "O 'Saldo inicial' é o que sobrou do mês anterior — ou o que faltou, em vermelho. Todo mês começa com ele. Toque no card para ver de onde vem o valor e, se não bater com o banco, ajustá-lo ao valor real.",
+      "O 'Saldo inicial' é o que sobrou do mês anterior — ou o que faltou, em vermelho. Todo mês começa com ele. Toque no card para ver de onde vem o valor.",
+      "Se o saldo não bater com o banco, toque no card 'Saldo inicial' e use 'Registrar saldo atual': informe quanto você tem hoje no banco e o app guarda a diferença como uma 'correção do saldo' de antes deste mês — suas receitas e o pago do mês não mudam. Se você sabe quanto tinha no dia 1º, use 'Saldo do início do mês'. O saldo do início não é receita: é o que já estava na conta quando o mês começou. A lixeira ao lado de cada correção a desfaz.",
       "Conforme você marca despesas como pagas, os cards 'Pago' e 'A pagar' vão se atualizando sozinhos.",
       "O 'Saldo atual' é o saldo inicial mais as receitas do mês, menos o que você pagou no mês.",
       "Se o saldo inicial veio negativo, confira na aba Histórico o mês anterior: alguma receita pode não ter sido cadastrada.",
@@ -18,7 +19,7 @@ export const AJUDA_CONTEUDO = {
   },
   despesas: {
     titulo: "Como funciona Despesas",
-    explicacao: "Aqui ficam todos os seus gastos, separados em 'Pendentes' (ainda não pagos) e 'Histórico' (já pagos), do mais recente para o mais antigo. As parcelas de um parcelamento aparecem nesta mesma lista. A aba abre sempre no mês atual; se houver pendências de meses anteriores, um aviso amarelo mostra quantas são.",
+    explicacao: "Aqui ficam todos os seus gastos, separados em 'Pendentes' (ainda não pagos) e 'Histórico' (já pagos), do mais recente para o mais antigo. As parcelas de um parcelamento aparecem nesta mesma lista. A aba abre sempre no mês atual; se houver pendências de meses anteriores, um aviso amarelo mostra quantas são. Ao lado do total fica o seu saldo atual, o mesmo da Início, que diminui na hora em que você marca uma despesa como paga.",
     passos: [
       "Clique em 'Nova' e preencha a descrição (ex: Almoço), o valor, a data de vencimento, a categoria e a forma de pagamento (Pix, cartão ou dinheiro).",
       "Crie suas próprias categorias em '+ Categoria' (ex: Faculdade) e escolha uma cor; clique numa categoria para ver só os gastos dela.",

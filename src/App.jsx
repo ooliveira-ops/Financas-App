@@ -9,7 +9,7 @@ import Auth from "./Auth";
 import { BotaoAjuda } from "./Ajuda";
 import { ModalBase, ModalConfirmar, Campo, InputValor, Selecao, Aviso, Rodape, inputCls } from "./ModalBase";
 import {
-  formatBRL, hojeISO, mesAtual, somarMeses, nomeMes,
+  formatBRL, hojeISO, mesAtual, somarMeses, nomeMes, dataLocalISO,
   formatarDataBR, formatarDataHora, dividirEmParcelas, mesclarPorId,
 } from "./utils";
 import {
@@ -20,7 +20,7 @@ import {
   faturasDoCartao, mesesComDespesas, pendentesAnteriores as calcularPendentesAnteriores,
   filtrarDespesas, agruparPorMes, textoParcela, grupoDaDespesa, resumoGrupo, montarDespesas,
   pendentesPorVencimento, progressoParcelamento, avancoSemDespesas, despesasDeAssinaturas,
-  podeConcluir, separarParcelamentos,
+  podeConcluir, separarParcelamentos, saldoBruto, ajusteParaSaldo,
 } from "./calculos";
 import { buscarTodos as buscarTodosDoBanco } from "./dados";
 
@@ -236,16 +236,16 @@ function AppLogado({ session }) {
   });
 
   // Ajuste de saldo é uma receita do mês anterior (negativa quando o app mostra mais do
-  // que o banco tem): corrige o saldo inicial sem mexer em nenhuma despesa, e apagá-la
-  // desfaz a correção.
-  const ajustarSaldoInicial = async (valorReal, saldoAtualInicial) => {
-    const diferenca = Math.round((valorReal - saldoAtualInicial) * 100) / 100;
-    if (diferenca === 0) return notificar("O saldo inicial já está nesse valor.", "info");
+  // que o banco tem): corrige o saldo sem mexer em nenhuma despesa nem nas receitas do
+  // mês, e apagá-la desfaz a correção. Serve tanto para acertar o saldo inicial quanto o
+  // atual: os dois se movem juntos pela mesma diferença.
+  const registrarAjusteSaldo = async (diferenca, confirmacao) => {
+    if (diferenca === 0) return notificar("O saldo já está nesse valor.", "info");
     const mesAnterior = somarMeses(`${mesAtual()}-01`, -1).substring(0, 7);
     const { data, error } = await supabase.from("receitas").insert({ fonte: FONTE_AJUSTE, valor: diferenca, mes: mesAnterior, user_id: userId }).select().single();
     if (error || !data) return notificar("Não foi possível ajustar o saldo: " + (error?.message || ""));
     setReceitas(prev => [...prev, data]);
-    notificar(`Saldo inicial ajustado para ${formatBRL(valorReal)} (${diferenca > 0 ? "+" : ""}${formatBRL(diferenca)}).`, "sucesso");
+    notificar(`${confirmacao} (${diferenca > 0 ? "+" : "−"}${formatBRL(Math.abs(diferenca))}).`, "sucesso");
   };
 
   // Todo caminho que muda as despesas de um parcelamento — pagar, apagar, editar — passa
@@ -496,6 +496,7 @@ function AppLogado({ session }) {
     [receitas, despesasPagas, despesasPendentes, mes],
   );
   const saldoInicial = composicaoSaldoInicial.saldo;
+  const saldoAtualCalculado = useMemo(() => saldoBruto(receitas, despesasPagas), [receitas, despesasPagas]);
   // "A PAGAR" GERAL: soma TODAS as despesas pendentes, de qualquer mês (não só do mês atual),
   // para nada "desaparecer" quando o mês virar. Na aba Despesas dá pra filtrar por mês específico.
   const totalPendentesGeral = useMemo(() => somaValores(despesasPendentes), [despesasPendentes]);
@@ -652,8 +653,8 @@ function AppLogado({ session }) {
       </nav>
 
       <main className="relative z-10 px-4 sm:px-6 md:px-12 pt-8 pb-[calc(6rem_+_env(safe-area-inset-bottom))] sm:pb-8 max-w-6xl mx-auto">
-        {aba === "home" && <HomeAba quote={quote} saldo={saldo} saldoInicial={saldoInicial} composicaoSaldoInicial={composicaoSaldoInicial} onAjustarSaldoInicial={ajustarSaldoInicial} onRemoverAjuste={removerReceita} temReceitaNoMes={temReceitaNoMes} saldoMes={saldoMes} temMovimentoNoMes={temMovimentoNoMes} totalReceitasMes={totalReceitasMes} totalDespesasMes={totalDespesasMes} totalPendentesGeral={totalPendentesGeral} proximasAssinaturas={proximasAssinaturas} receitas={receitas} despesas={despesas} assinaturas={assinaturas} parcelamentos={parcelamentos} userNome={userNome} onAviso={notificar}/>}
-        {aba === "despesas" && <DespesasAba despesasPendentes={despesasPendentes} despesasPagas={despesasPagas} categorias={categorias} emAndamento={emAndamento} onAdicionar={() => setModalDespesa(true)} onAdicionarParcelamento={() => setModalParcelamento(true)} onNovaCategoria={() => setModalCategoria(true)} onRemoverCategoria={removerCategoria} onRemover={removerDespesa} onMarcarPaga={marcarComoPaga} onPagarFatura={pagarFatura} onEditar={setDespesaEditando}/>}
+        {aba === "home" && <HomeAba quote={quote} saldo={saldo} saldoInicial={saldoInicial} composicaoSaldoInicial={composicaoSaldoInicial} onAjustarSaldo={registrarAjusteSaldo} saldoAtualCalculado={saldoAtualCalculado} onRemoverAjuste={removerReceita} temReceitaNoMes={temReceitaNoMes} saldoMes={saldoMes} temMovimentoNoMes={temMovimentoNoMes} totalReceitasMes={totalReceitasMes} totalDespesasMes={totalDespesasMes} totalPendentesGeral={totalPendentesGeral} proximasAssinaturas={proximasAssinaturas} receitas={receitas} despesas={despesas} assinaturas={assinaturas} parcelamentos={parcelamentos} userNome={userNome} onAviso={notificar}/>}
+        {aba === "despesas" && <DespesasAba despesasPendentes={despesasPendentes} despesasPagas={despesasPagas} saldo={saldo} temReceita={temReceitaNoMes} categorias={categorias} emAndamento={emAndamento} onAdicionar={() => setModalDespesa(true)} onAdicionarParcelamento={() => setModalParcelamento(true)} onNovaCategoria={() => setModalCategoria(true)} onRemoverCategoria={removerCategoria} onRemover={removerDespesa} onMarcarPaga={marcarComoPaga} onPagarFatura={pagarFatura} onEditar={setDespesaEditando}/>}
         {aba === "grafico" && (
           <Suspense fallback={<div className="py-24 flex justify-center"><Loader2 className="text-blue-400/60 animate-spin" size={24}/></div>}>
             <GraficoAba despesas={despesas} receitas={receitas} assinaturas={assinaturas}/>
@@ -891,15 +892,18 @@ const rotuloParcela = (d) =>
 // em tela estreita, empurra a lista de lançamentos para fora da primeira dobra.
 // O `select` nativo abre o seletor do próprio sistema no celular; as setas atendem
 // a navegação sequencial, que é o uso comum no desktop.
+// `meses` vem do mais recente para o mais antigo, então o mês anterior é o item seguinte
+// da lista. As setas andam só entre meses; "todos" se escolhe pelo seletor.
 export function SeletorMes({ meses, valor, onChange, incluirTodos = false, rotuloTodos = "Todos os meses" }) {
   const opcoes = incluirTodos ? ["todos", ...meses] : meses;
   if (opcoes.length === 0) return <p className="font-body text-slate-400/50 text-sm">Nenhum mês ainda.</p>;
-  const atual = opcoes.indexOf(valor);
-  const irPara = (delta) => { const alvo = opcoes[atual + delta]; if (alvo) onChange(alvo); };
+  const atual = meses.indexOf(valor);
+  const anterior = atual >= 0 ? meses[atual + 1] : undefined;
+  const proximo = atual > 0 ? meses[atual - 1] : undefined;
   const setaCls = "p-2 rounded-full bg-white/5 border border-blue-900/30 text-slate-300 transition-all enabled:hover:bg-white/10 disabled:opacity-25 disabled:cursor-not-allowed";
   return (
     <div className="flex items-center gap-2 w-full sm:w-auto">
-      <button onClick={() => irPara(-1)} disabled={atual <= 0} className={setaCls} aria-label="Mês anterior"><ChevronLeft size={16}/></button>
+      <button onClick={() => anterior && onChange(anterior)} disabled={!anterior} className={setaCls} aria-label="Mês anterior"><ChevronLeft size={16}/></button>
       <div className="relative flex-1 sm:flex-none">
         <select
           value={valor}
@@ -910,7 +914,7 @@ export function SeletorMes({ meses, valor, onChange, incluirTodos = false, rotul
         </select>
         <ChevronRight size={14} className="absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-slate-400/50 pointer-events-none"/>
       </div>
-      <button onClick={() => irPara(1)} disabled={atual >= opcoes.length - 1} className={setaCls} aria-label="Próximo mês"><ChevronRight size={16}/></button>
+      <button onClick={() => proximo && onChange(proximo)} disabled={!proximo} className={setaCls} aria-label="Próximo mês"><ChevronRight size={16}/></button>
     </div>
   );
 }
@@ -976,7 +980,7 @@ function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome
 }
 
 // ── HOME ─────────────────────────────────────────────────────────────────────────
-function HomeAba({ quote, saldo, saldoInicial, composicaoSaldoInicial, onAjustarSaldoInicial, onRemoverAjuste, temReceitaNoMes, saldoMes, temMovimentoNoMes, totalReceitasMes, totalDespesasMes, totalPendentesGeral, proximasAssinaturas, receitas, despesas, assinaturas, parcelamentos, userNome, onAviso }) {
+function HomeAba({ quote, saldo, saldoInicial, composicaoSaldoInicial, saldoAtualCalculado, onAjustarSaldo, onRemoverAjuste, temReceitaNoMes, saldoMes, temMovimentoNoMes, totalReceitasMes, totalDespesasMes, totalPendentesGeral, proximasAssinaturas, receitas, despesas, assinaturas, parcelamentos, userNome, onAviso }) {
   const mesAnterior = nomeMes(somarMeses(`${mesAtual()}-01`, -1).substring(0, 7));
   const [verSaldoInicial, setVerSaldoInicial] = useState(false);
   const despesasPagasCount = despesas.filter(d => d.status === "paga").length;
@@ -1047,7 +1051,7 @@ function HomeAba({ quote, saldo, saldoInicial, composicaoSaldoInicial, onAjustar
           )}
         </div>
       </section>
-      {verSaldoInicial && <ModalSaldoInicial composicao={composicaoSaldoInicial} mesAnterior={mesAnterior} onFechar={() => setVerSaldoInicial(false)} onAjustar={onAjustarSaldoInicial} onRemoverAjuste={onRemoverAjuste}/>}
+      {verSaldoInicial && <ModalSaldoInicial composicao={composicaoSaldoInicial} saldoAtual={saldoAtualCalculado} mesAnterior={mesAnterior} onFechar={() => setVerSaldoInicial(false)} onAjustar={onAjustarSaldo} onRemoverAjuste={onRemoverAjuste}/>}
     </div>
   );
 }
@@ -1075,28 +1079,33 @@ export function CardSaldo({ label, escopo, saldo, temReceita, delay, onClick, ac
 
 // Mostra de onde vem o saldo inicial e deixa corrigi-lo para o valor real do banco.
 // O app só conhece o que foi registrado nele; as pistas apontam os desencontros comuns.
-function ModalSaldoInicial({ composicao, mesAnterior, onFechar, onAjustar, onRemoverAjuste }) {
+// Dois jeitos de acertar o saldo com o banco: informar quanto se tem hoje (o mais comum)
+// ou com quanto o mês começou. Os dois viram o mesmo ajuste no mês anterior.
+function ModalSaldoInicial({ composicao, saldoAtual, mesAnterior, onFechar, onAjustar, onRemoverAjuste }) {
+  const [modo, setModo] = useState("atual");
   const [valorReal, setValorReal] = useState("");
   const [salvando, setSalvando] = useState(false);
   const c = composicao;
   const real = valorReal === "" ? null : parseFloat(valorReal);
-  const diferenca = real === null || isNaN(real) ? null : Math.round((real - c.saldo) * 100) / 100;
+  const base = modo === "atual" ? saldoAtual : c.saldo;
+  const diferenca = real === null || isNaN(real) ? null : ajusteParaSaldo(real, base);
   const linha = (rotulo, valor, cor) => (
     <div className="flex items-center justify-between gap-3 px-4 py-2.5"><span className="font-body text-sm text-slate-400/80">{rotulo}</span><span className={`font-mono-c num-tabular text-sm ${cor}`}>{valor < 0 ? "− " : ""}{formatBRL(Math.abs(valor))}</span></div>
   );
   const submit = async () => {
     if (diferenca === null || diferenca === 0) return;
     setSalvando(true);
-    await onAjustar(real, c.saldo);
+    await onAjustar(diferenca, modo === "atual" ? `Saldo atual registrado em ${formatBRL(real)}` : `Saldo inicial ajustado para ${formatBRL(real)}`);
     onFechar();
   };
+  const opcaoCls = (ativa) => `flex-1 px-3 py-2 rounded-lg font-body text-xs transition ${ativa ? "bg-blue-600 text-white" : "text-slate-400/80 hover:text-slate-200"}`;
   return (
     <ModalBase titulo="Saldo inicial" subtitulo={`Com quanto você começou ${nomeMes(mesAtual())}`} icone={Wallet} onFechar={onFechar} onSubmit={submit}
-      rodape={<Rodape onCancelar={onFechar} textoConfirmar="Ajustar saldo" salvando={salvando} desabilitado={diferenca === null || diferenca === 0}/>}>
+      rodape={<Rodape onCancelar={onFechar} textoConfirmar={modo === "atual" ? "Registrar saldo atual" : "Registrar saldo do dia 1º"} salvando={salvando} desabilitado={diferenca === null || diferenca === 0}/>}>
       <div className="rounded-xl border border-blue-900/30 overflow-hidden divide-y divide-blue-900/20 bg-white/[0.02]">
         {linha(`Receitas até ${mesAnterior}`, c.receitas, "text-emerald-400")}
         {linha(`Pago até ${mesAnterior}`, -c.pagas, "text-red-400")}
-        {c.totalAjustes !== 0 && linha("Ajustes de saldo", c.totalAjustes, "text-sky-300")}
+        {c.totalAjustes !== 0 && linha("Correções feitas por você", c.totalAjustes, "text-sky-300")}
         <div className="flex items-center justify-between gap-3 px-4 py-3 bg-white/[0.03]"><span className="font-body text-sm font-medium text-slate-100">Saldo inicial</span><span className={`font-mono-c num-tabular text-lg font-bold ${c.saldo >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatBRL(c.saldo)}</span></div>
       </div>
       {(c.pendentesAntigas > 0 || c.antigasPagasNoMes > 0 || c.pagasSemData > 0) && (
@@ -1109,18 +1118,32 @@ function ModalSaldoInicial({ composicao, mesAnterior, onFechar, onAjustar, onRem
       )}
       {c.ajustes.length > 0 && (
         <div className="space-y-1.5">
-          <span className="block font-body text-xs font-medium text-slate-300/80">Ajustes feitos</span>
+          <span className="block font-body text-xs font-medium text-slate-300/80">Correções do saldo</span>
+          <p className="font-body text-[11px] text-slate-400/60 leading-relaxed">Feitas por você para o app bater com o banco. Contam como dinheiro de antes de {nomeMes(mesAtual())}, por isso não mudam as receitas nem o pago deste mês. A lixeira desfaz a correção.</p>
           {c.ajustes.map(a => (
             <div key={a.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/[0.02] border border-blue-900/20">
-              <span className="font-body text-xs text-slate-400/70 flex-1">{nomeMes(a.mes)}</span>
-              <span className="font-mono-c num-tabular text-sm text-sky-300">{formatBRL(a.valor)}</span>
-              <button type="button" onClick={() => { onFechar(); onRemoverAjuste(a.id); }} className="p-2 -m-1 rounded-lg text-slate-400/50 hover:text-red-400 hover:bg-red-500/10" aria-label="Desfazer ajuste"><Trash2 size={14}/></button>
+              <div className="flex-1 min-w-0">
+                <span className="block font-body text-xs text-slate-300/90">Correção do saldo até {nomeMes(a.mes)}</span>
+                {a.created_at && <span className="block font-mono-c text-[10px] text-slate-400/50">feita em {formatarDataBR(dataLocalISO(new Date(a.created_at)))}</span>}
+              </div>
+              <span className="font-mono-c num-tabular text-sm text-sky-300">{a.valor < 0 ? "−" : "+"}{formatBRL(Math.abs(a.valor))}</span>
+              <button type="button" onClick={() => { onFechar(); onRemoverAjuste(a.id); }} className="p-2 -m-1 rounded-lg text-slate-400/50 hover:text-red-400 hover:bg-red-500/10" aria-label="Desfazer correção"><Trash2 size={14}/></button>
             </div>
           ))}
         </div>
       )}
-      <div className="pt-1 border-t border-blue-900/20">
-        <Campo rotulo={`Valor real no banco no fim de ${mesAnterior}`} dica={diferenca === null ? "A diferença vira um ajuste — nenhuma despesa é alterada." : diferenca === 0 ? "Já está nesse valor." : `Será registrado um ajuste de ${diferenca > 0 ? "+" : "−"}${formatBRL(Math.abs(diferenca))}.`} className="pt-4">
+      <div className="pt-4 border-t border-blue-900/20 space-y-4">
+        <div className="flex gap-1 p-1 rounded-xl bg-white/[0.03] border border-blue-900/30">
+          <button type="button" aria-pressed={modo === "atual"} onClick={() => setModo("atual")} className={opcaoCls(modo === "atual")}>Registrar saldo atual</button>
+          <button type="button" aria-pressed={modo === "inicio"} onClick={() => setModo("inicio")} className={opcaoCls(modo === "inicio")}>Saldo do início do mês</button>
+        </div>
+        <Campo
+          rotulo={modo === "atual" ? "Quanto você tem hoje no banco" : `Quanto você tinha no dia 1º de ${nomeMes(mesAtual())}`}
+          dica={diferenca === null
+            ? (modo === "atual"
+              ? `Hoje o app calcula ${formatBRL(saldoAtual)}. A diferença vira uma correção do saldo até ${mesAnterior}: as receitas e o pago deste mês não mudam.`
+              : `O que já estava na conta antes de qualquer receita de ${nomeMes(mesAtual())}. Não é receita do mês: vira uma correção do saldo até ${mesAnterior}.`)
+            : diferenca === 0 ? "Já está nesse valor." : `Será registrada uma correção de ${diferenca > 0 ? "+" : "−"}${formatBRL(Math.abs(diferenca))}.`}>
           <InputValor value={valorReal} onChange={e => setValorReal(e.target.value)}/>
         </Campo>
       </div>
@@ -1129,7 +1152,7 @@ function ModalSaldoInicial({ composicao, mesAnterior, onFechar, onAjustar, onRem
 }
 
 // ── DESPESAS ──────────────────────────────────────────────────────────────────────
-function DespesasAba({ despesasPendentes, despesasPagas, categorias, emAndamento, onAdicionar, onAdicionarParcelamento, onNovaCategoria, onRemoverCategoria, onRemover, onMarcarPaga, onPagarFatura, onEditar }) {
+function DespesasAba({ despesasPendentes, despesasPagas, saldo, temReceita, categorias, emAndamento, onAdicionar, onAdicionarParcelamento, onNovaCategoria, onRemoverCategoria, onRemover, onMarcarPaga, onPagarFatura, onEditar }) {
   const [subAba, setSubAba] = useState("pendentes");
   // A aba sempre abre no mês atual; "todos" mostra qualquer mês, inclusive o que ficou
   // para trás. O aviso de pendências antigas cobre o que o filtro do mês esconderia.
@@ -1168,11 +1191,20 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, emAndamento
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <BotaoAjuda topico="despesas"/>
-          <div>
-            <p className="font-mono-c text-[10px] text-slate-400/60 uppercase">
-              {subAba === "pendentes" ? "A pagar" : "Pago"}{mesFiltro !== "todos" ? ` · ${nomeMes(mesFiltro)}` : " · todos os meses"}
-            </p>
-            <h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{formatBRL(total)}</h2>
+          {/* O saldo é o mesmo da Home: cai na hora em que uma despesa é paga aqui. */}
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+            <div>
+              <p className="font-mono-c text-[10px] text-slate-400/60 uppercase">
+                {subAba === "pendentes" ? "A pagar" : "Pago"}{mesFiltro !== "todos" ? ` · ${nomeMes(mesFiltro)}` : " · todos os meses"}
+              </p>
+              <h2 className="font-mono-c num-tabular text-4xl font-bold text-slate-100">{formatBRL(total)}</h2>
+            </div>
+            <div className="sm:pl-6 sm:border-l border-blue-900/40" aria-live="polite">
+              <p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Saldo atual</p>
+              {temReceita
+                ? <p className={`font-mono-c num-tabular text-2xl font-bold transition-colors ${saldo >= 0 ? "text-emerald-400" : "text-red-400"}`}>{formatBRL(saldo)}</p>
+                : <p className="font-mono-c text-2xl font-bold text-slate-400/40" title="Cadastre receitas para ver o saldo">—</p>}
+            </div>
           </div>
         </div>
         <div className="flex gap-2">

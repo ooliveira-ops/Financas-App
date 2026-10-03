@@ -9,9 +9,9 @@ App de controle financeiro pessoal com receitas, despesas parceladas, categorias
 ## Funcionalidades
 
 - **Acesso por tokens** — convite com tokens únicos, sem cadastro aberto
-- **Despesas** — pendentes vs pagas, com vencimento, categorias e filtro por mês. Por padrão a lista mostra todos os meses, para que uma conta atrasada não desapareça na virada
+- **Despesas** — pendentes vs pagas, com vencimento, categorias e seletor de mês. Por padrão a lista mostra todos os meses, para que uma conta atrasada não desapareça na virada, agrupada por período e com o subtotal de cada mês
 - **Parcelamento de despesa** — informe o valor total e o número de vezes; o app cria uma despesa por mês e divide em centavos exatos, com a última parcela absorvendo o arredondamento
-- **Parcelamentos** — compras grandes divididas em várias vezes: o app cria uma despesa por parcela e a aba mostra o progresso de pagamento com barra e próxima data
+- **Parcelamentos** — compras grandes divididas em várias vezes: o app cria uma despesa por parcela e a aba mostra o progresso de pagamento com barra e próxima data. Quitar uma parcela em qualquer uma das duas telas atualiza a outra, porque o progresso é recalculado a partir das despesas em vez de contado à parte
 - **Assinaturas recorrentes** — a despesa do mês é gerada automaticamente no dia de vencimento escolhido
 - **Receitas mensais** — registre as entradas de cada mês
 - **Saldo acumulado** — soma as receitas de todo o histórico e desconta as despesas pagas. O que sobra de um mês transita sozinho para o mês seguinte, sem lançamento manual
@@ -20,7 +20,7 @@ App de controle financeiro pessoal com receitas, despesas parceladas, categorias
 - **Relatório PDF** — resumo do mês em um clique, com o período indicado em cada linha
 - **Avisos de vencimento** — alerta para contas vencidas ou vencendo em até 7 dias
 - **Botão de Dúvidas** — cada seção tem um botão de ajuda com explicação e passo a passo
-- **Painel Admin** — usuários, último login, permissões e publicação de novidades
+- **Painel Admin** — usuários, último acesso, permissões e publicação de novidades
 - **Sistema de novidades** — o admin publica atualizações pelo painel, sem tocar no código
 - **PWA** — sem loja de aplicativos: abre o site e usa "Adicionar à tela inicial" no celular ou "Instalar" no navegador do PC
 - **Design azul escuro** — Fraunces + JetBrains Mono + Inter
@@ -119,6 +119,7 @@ Esse arquivo é a única definição do schema. Ele cria:
 - **as políticas de RLS** e os índices
 - **o trigger** que cria o perfil no cadastro
 - **as funções** `verificar_codigo_acesso`, `consumir_codigo_acesso`, `toggle_user_admin`, `gerar_token_aleatorio` e `ping`
+- **as migrações** que alinham um banco criado por uma versão anterior — `CREATE TABLE IF NOT EXISTS` vira no-op numa tabela que já existe, então coluna nova entra por `ALTER TABLE`
 
 **Deu certo se:** apareceu *Success. No rows returned* e as tabelas estão em **Table Editor**.
 
@@ -196,6 +197,17 @@ npm run dev
 
 🖥️ Abre em http://localhost:5173 — faça login com a conta criada no passo 7.
 
+Para abrir no celular durante o desenvolvimento, use:
+
+```bash
+npm run dev:host
+```
+
+O terminal passa a mostrar também uma linha `Network:` com o endereço da sua máquina na
+rede — é ele que você abre no telefone, com o aparelho no mesmo Wi-Fi. Existe como script
+separado porque, no PowerShell, o `--` de `npm run dev -- --host` é consumido pelo próprio
+shell e a flag nunca chega ao Vite.
+
 ---
 
 ### 🌐 Etapa 5 — Publicar
@@ -208,6 +220,10 @@ npm run dev
 4. **Deploy**
 
 > Branches diferentes da `main` geram Preview Deployments automáticos com URL própria.
+> Por padrão a Vercel protege esses previews: abri-los exige estar logado na conta, ou
+> gerar um link de compartilhamento pelo botão **Share** do deployment. As variáveis de
+> ambiente também precisam estar marcadas para o ambiente **Preview** — marcadas só em
+> Production, o preview sobe sem as chaves e abre em tela branca.
 
 O `vercel.json` também configura um **cron** que chama `/api/ping` a cada 3 dias, para o
 projeto Supabase não ser pausado por inatividade. Esse endpoint usa a função `ping()` do
@@ -324,6 +340,8 @@ Os valores da Home não têm todos o mesmo período, e cada card indica o seu es
 Por isso `Receitas − Pago` não é igual ao Saldo: os dois primeiros são do mês, o saldo é acumulado. É esse acúmulo que faz o dinheiro que sobrou de um mês continuar disponível no mês seguinte.
 
 Parcelamentos entram nessa conta pelas despesas — uma por parcela, criadas junto com o parcelamento — e não pelo campo "já pago" da aba Parcelamentos, que serve apenas para mostrar progresso. Somar os dois contaria o mesmo dinheiro duas vezes.
+
+Cada despesa de parcela guarda a referência ao parcelamento que a originou, e é dessa ligação que sai o progresso: parcelas pagas e valor já pago são recalculados a partir das despesas a cada mudança, nunca incrementados por conta própria. Apagar o parcelamento não apaga as despesas — o gasto continua no saldo, apenas sem o acompanhamento.
 
 O relatório PDF segue a mesma lógica e traz o período em cada linha do resumo.
 

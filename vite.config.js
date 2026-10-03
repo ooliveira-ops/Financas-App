@@ -2,7 +2,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  // O .env.local da raiz aponta para o banco de produção e o Vite o carrega em todo
+  // modo, inclusive no Vitest. Os testes leem env só da pasta tests/.
+  envDir: mode === 'test' ? 'tests' : '.',
   plugins: [
     react(),
     VitePWA({
@@ -42,5 +45,20 @@ export default defineConfig({
         clientsClaim: true
       }
     })
-  ]
-})
+  ],
+  test: {
+    include: ['tests/unit/**/*.test.{js,jsx}'],
+    environment: 'node',
+    // Fuso fixo para o resultado não depender da máquina; os testes de data trocam o
+    // TZ por conta própria para cobrir também o UTC do runner de CI.
+    env: { TZ: 'America/Sao_Paulo' },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{js,jsx}', 'api/**/*.js'],
+      reporter: ['text', 'html', 'lcov'],
+      thresholds: {
+        'src/utils.js': { statements: 95, branches: 95, functions: 95, lines: 95 },
+      },
+    },
+  },
+}))

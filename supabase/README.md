@@ -6,7 +6,9 @@ manutenção usadas pelo dono do deploy.
 | Arquivo | O que é |
 |---|---|
 | `supabase-setup.sql` | Schema completo: tabelas, índices, RLS, trigger de perfil e funções RPC |
-| `.temp/` | Gerada pelo Supabase CLI ao vincular um projeto. Local, fica fora do git |
+| `seed.sql` | Dados **fictícios** do Supabase local: um token de convite para testes à mão |
+| `config.toml` | Configuração do Supabase **local** (Supabase CLI): portas, seed, limites do auth |
+| `.temp/`, `.branches/` | Gerados pelo Supabase CLI. Locais, ficam fora do git |
 
 > 📌 `supabase-setup.sql` é a **única** definição do schema e a única versão
 > recuperável dele. Mudou algo pelo painel do Supabase (coluna, policy, função,
@@ -40,6 +42,34 @@ O script é **idempotente** (`IF NOT EXISTS` / `OR REPLACE` / `DROP ... IF EXIST
 roda de novo sem estragar nada. Num projeto que **já está em produção**, compare antes
 com o schema real, em especial as **policies**, que podem ter sido ajustadas pelo
 painel.
+
+---
+
+## 💻 Rodar um Supabase local (CLI + Docker)
+
+Para os testes e2e, ou para mexer no schema sem arriscar o projeto da nuvem. Precisa do
+**Docker** rodando; o CLI já vem nas dependências do projeto.
+
+```bash
+npx supabase start      # sobe banco, auth e API em http://127.0.0.1:54321
+npx supabase status     # mostra URL e chaves locais
+npx supabase db reset   # recria o banco do zero: schema + seed
+npx supabase stop
+```
+
+O `config.toml` aplica o **`supabase-setup.sql` como seed** (`[db.seed] sql_paths`),
+seguido do `seed.sql`. Assim o schema continua num arquivo único — o mesmo que se cola
+no SQL Editor — e o `db reset` prova que ele reconstrói, sozinho, tudo o que o app usa.
+
+- **Studio** local (o painel do Supabase): http://127.0.0.1:54323
+- **E-mails** enviados pelo auth local (recuperação de senha): http://127.0.0.1:54324
+- Realtime, storage, edge functions e analytics ficam desligados: o app não os usa.
+- O limite de cadastro/login por IP é alto (`sign_in_sign_ups`) porque os e2e fazem
+  dezenas de logins seguidos. Vale só para o local.
+
+> ⚠️ Os comandos acima são do banco **local**. Nunca use `--linked`, `db push` nem
+> `link` apontando para o projeto de produção a partir daqui: o `seed.sql` e o `db
+> reset` não foram feitos para ele.
 
 ---
 

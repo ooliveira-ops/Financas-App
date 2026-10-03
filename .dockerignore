@@ -6,7 +6,9 @@
 # Gerados e dependências: a imagem instala e builda do zero
 node_modules
 dist
+dist-e2e
 dist-ssr
+blob-report
 .vite
 coverage
 playwright-report

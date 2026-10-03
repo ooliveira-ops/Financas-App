@@ -4,8 +4,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig(({ mode }) => ({
   // O .env.local da raiz aponta para o banco de produção e o Vite o carrega em todo
-  // modo, inclusive no Vitest. Os testes leem env só da pasta tests/.
-  envDir: mode === 'test' ? 'tests' : '.',
+  // modo, inclusive no Vitest e no build dos e2e. Nos testes, as VITE_* vêm só da pasta
+  // tests/ ou do ambiente do processo (o Playwright passa as do Supabase local).
+  envDir: mode === 'test' || mode === 'e2e' ? 'tests' : '.',
   plugins: [
     react(),
     VitePWA({

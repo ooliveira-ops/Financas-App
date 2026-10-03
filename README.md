@@ -56,10 +56,13 @@ src/
 api/ping.js                   # Keep-alive do projeto Supabase, chamado pelo cron da Vercel
 supabase/supabase-setup.sql   # Schema completo: tabelas, índices, RLS e funções
 deploy/docker/                # Dockerfile e nginx.conf, alternativa à Vercel
+tests/unit/                   # Testes unitários (Vitest)
 ```
 
+- [`api/`](api/README.md) — a function `ping` e o cron que a chama
 - [`supabase/`](supabase/README.md) — schema, tokens de convite, admin e novidades
 - [`deploy/`](deploy/README.md) — Vercel, Netlify ou Docker
+- [`tests/`](tests/README.md) — como rodar e escrever testes
 
 Toda a lógica de negócio roda no cliente; o Supabase é chamado direto do browser e o isolamento entre usuários é feito por Row Level Security.
 
@@ -212,6 +215,12 @@ rede — é ele que você abre no telefone, com o aparelho no mesmo Wi-Fi. Exist
 separado porque, no PowerShell, o `--` de `npm run dev -- --host` é consumido pelo próprio
 shell e a flag nunca chega ao Vite.
 
+Para rodar os testes unitários, que não precisam do `.env.local` nem do banco:
+
+```bash
+npm test
+```
+
 ---
 
 ### 🌐 Etapa 5 — Publicar
@@ -338,7 +347,7 @@ O relatório PDF segue a mesma lógica e traz o período em cada linha do resumo
 - Cada deploy tem **Supabase e tokens próprios e independentes**
 - O token é **verificado** antes do cadastro e **consumido** só depois de a conta ser criada com sucesso
 - Sem confirmar email: desative em Authentication → Providers → Email → "Confirm email"
-- Não há testes automatizados: `npm run build` é a única verificação automática, então mudanças de cálculo devem ser conferidas na interface
+- Testes unitários com `npm test` (detalhes em [`tests/`](tests/README.md)). Eles cobrem os helpers de data e dinheiro, não as telas: mudança de cálculo ainda deve ser conferida na interface
 
 ---
 

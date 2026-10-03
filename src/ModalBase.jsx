@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
 
 // `[color-scheme:dark]` faz o seletor de data nativo usar ícone e calendário claros no tema escuro.
@@ -15,6 +16,8 @@ const TONS = {
 
 // No celular abre como folha presa à base da tela (mais perto do polegar); a partir de
 // `sm`, centralizado. Com `onSubmit`, o conteúdo vira <form> e o Enter salva.
+// Renderiza no <body>: dentro de um bloco com `transform` (as animações de entrada
+// terminam com um), o `fixed` ficaria preso ao bloco e abaixo dos elementos seguintes.
 export function ModalBase({ titulo, subtitulo, icone: Icone, tom = "azul", onFechar, onSubmit, rodape, children }) {
   useEffect(() => {
     const aoTeclar = (e) => { if (e.key === "Escape") onFechar?.(); };
@@ -23,8 +26,8 @@ export function ModalBase({ titulo, subtitulo, icone: Icone, tom = "azul", onFec
   }, [onFechar]);
   const Corpo = onSubmit ? "form" : "div";
   const aoEnviar = onSubmit ? (e) => { e.preventDefault(); onSubmit(); } : undefined;
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/75 backdrop-blur-sm" onClick={onFechar}>
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/75 backdrop-blur-sm text-left" onClick={onFechar}>
       <div role="dialog" aria-modal="true" aria-label={titulo} className="bg-[#0d1829] border border-blue-900/40 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[92vh] flex flex-col shadow-2xl shadow-black/50" onClick={e=>e.stopPropagation()}>
         <div className="flex items-start gap-3 px-6 pt-5 pb-4 border-b border-blue-900/30">
           {Icone && <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${TONS[tom] || TONS.azul}`}><Icone size={18}/></div>}
@@ -39,7 +42,8 @@ export function ModalBase({ titulo, subtitulo, icone: Icone, tom = "azul", onFec
           {rodape && <div className="px-6 pt-4 pb-[calc(1rem_+_env(safe-area-inset-bottom))] sm:pb-5 border-t border-blue-900/30 bg-[#0b1524] rounded-b-2xl">{rodape}</div>}
         </Corpo>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

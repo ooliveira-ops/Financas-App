@@ -5,7 +5,7 @@ lê o `.env.local` nem fala com o banco de verdade.
 
 | Pasta | O que tem | Ferramenta |
 |---|---|---|
-| `unit/` | Lógica pura (`src/utils.js`, `src/calculos.js`) e a function `api/ping.js`, com o Supabase mockado | **Vitest** |
+| `unit/` | Lógica pura (`src/utils.js`, `src/calculos.js`), componentes (`*.test.jsx`) e a function `api/ping.js`, com o Supabase mockado | **Vitest** + **Testing Library** |
 
 ---
 
@@ -46,6 +46,20 @@ Não apague esse teste.
   falharia sem a correção.
 - **Dados fictícios** sempre: `teste@example.com`, valores redondos, URLs como
   `http://supabase.teste.local`. Nada copiado de produção.
+
+### Componentes
+
+O ambiente padrão é `node`, sem DOM. Teste de componente começa com o comentário abaixo
+na **primeira linha**, que liga o `jsdom` só para aquele arquivo:
+
+```jsx
+// @vitest-environment jsdom
+import { cleanup, render, screen } from '@testing-library/react'
+```
+
+Asserções por **texto e papel** (`getByRole('dialog', { name: '...' })`,
+`getByText`), nunca snapshot do HTML inteiro. Chame `cleanup` no `afterEach`. O
+padrão está em `unit/ModalBase.test.jsx`.
 
 ### Datas e fuso
 

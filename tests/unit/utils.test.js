@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   dataLocalISO, dividirEmParcelas, formatBRL, formatarDataBR, formatarDataHora, hojeISO,
-  mesAtual, mesclarPorId, nomeMes, nomeMesAbrev, somarMeses, ultimosMeses,
+  mesAtual, mesclarPorId, nomeMes, nomeMesAbrev, somarDias, somarMeses, ultimosMeses,
 } from '../../src/utils.js'
 
 // O app roda em UTC-3; o runner do CI roda em UTC. Os helpers de data precisam dar a
@@ -107,6 +107,24 @@ describe('somarMeses', () => {
       expect(mes).toBeGreaterThanOrEqual(1)
       expect(mes).toBeLessThanOrEqual(12)
     }
+  })
+})
+
+describe.each(FUSOS)('somarDias em $tz', ({ tz }) => {
+  const tzOriginal = process.env.TZ
+  beforeEach(() => { process.env.TZ = tz })
+  afterEach(() => { process.env.TZ = tzOriginal })
+
+  it.each([
+    ['2026-03-10', 7, '2026-03-17'],
+    ['2026-01-28', 7, '2026-02-04'],
+    ['2026-12-28', 7, '2027-01-04'],
+    ['2024-02-28', 1, '2024-02-29'],
+    ['2026-02-28', 1, '2026-03-01'],
+    ['2026-03-01', -1, '2026-02-28'],
+    ['2026-05-20', 0, '2026-05-20'],
+  ])('%s somando %i dia(s) = %s', (data, dias, esperado) => {
+    expect(somarDias(data, dias)).toBe(esperado)
   })
 })
 

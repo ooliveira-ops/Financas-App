@@ -5,7 +5,7 @@ lê o `.env.local` nem fala com o banco de verdade.
 
 | Pasta | O que tem | Ferramenta |
 |---|---|---|
-| `unit/` | Lógica pura (`src/utils.js`) e a function `api/ping.js`, com o Supabase mockado | **Vitest** |
+| `unit/` | Lógica pura (`src/utils.js`, `src/calculos.js`) e a function `api/ping.js`, com o Supabase mockado | **Vitest** |
 
 ---
 
@@ -37,6 +37,9 @@ Não apague esse teste.
 
 - **Onde:** `tests/unit/`, espelhando o caminho do arquivo testado:
   `src/utils.js` → `tests/unit/utils.test.js`; `api/ping.js` → `tests/unit/api/ping.test.js`.
+- **Conta nova** (saldo, total, filtro, progresso) vai para `src/calculos.js` como função
+  pura, recebendo listas e datas por parâmetro, e ganha teste em `unit/calculos.test.js`.
+  O componente só a chama dentro de `useMemo`.
 - **Nome:** `<arquivo>.test.js` (ou `.test.jsx` para componente). Só esses são executados.
 - **Títulos** em português, descrevendo o comportamento: `'100 em 3x = 33,33 / 33,33 / 33,34'`.
 - **Toda alteração vem com teste**, e todo bug corrigido ganha um teste de regressão que

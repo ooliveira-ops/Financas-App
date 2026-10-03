@@ -22,7 +22,12 @@ export const somarMeses = (dataISO, meses) => {
   return `${alvoAno}-${pad2(alvoMes)}-${pad2(Math.min(dia, ultimoDia))}`;
 };
 
-const MESES_ABREV = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+export const somarDias = (dataISO, dias) => {
+  const [ano, mes, dia] = dataISO.split("-").map(Number);
+  return dataLocalISO(new Date(ano, mes - 1, dia + dias));
+};
+
+const MESES_ABREV =["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 export const nomeMesAbrev = (mesISO) => {

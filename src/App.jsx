@@ -12,6 +12,15 @@ import {
   formatBRL, hojeISO, mesAtual, somarMeses, nomeMes,
   formatarDataBR, formatarDataHora, dividirEmParcelas, mesclarPorId,
 } from "./utils";
+import {
+  FONTE_AJUSTE, somaValores, separarPorStatus, receitasDoMes, pagasNoMes, pendentesDoMes,
+  calcularSaldo, calcularSaldoMes, composicaoSaldoInicial as calcularComposicaoSaldoInicial,
+  proximasAssinaturas as calcularProximasAssinaturas, avisosDeVencimento,
+  mesesDoHistorico, despesasDoMesNoHistorico, totaisPagoPendente,
+  faturasDoCartao, mesesComDespesas, pendentesAnteriores as calcularPendentesAnteriores,
+  filtrarDespesas, agruparPorMes, textoParcela, grupoDaDespesa, resumoGrupo, montarDespesas,
+  pendentesPorVencimento, progressoParcelamento, avancoSemDespesas, despesasDeAssinaturas,
+} from "./calculos";
 
 // Carregada sob demanda para manter o recharts fora do bundle inicial.
 const GraficoAba = lazy(() => import("./GraficoAba"));
@@ -52,25 +61,6 @@ const FORMAS_PAGAMENTO = [
   { id: "dinheiro", label: "Dinheiro" },
 ];
 const rotuloForma = (id) => FORMAS_PAGAMENTO.find(f => f.id === id)?.label || null;
-
-// Identifica a receita gerada por "Ajustar saldo inicial" entre as receitas comuns.
-const FONTE_AJUSTE = "Ajuste de saldo";
-
-// Uma compra parcelada vira N linhas em `despesas`. Com parcelamento, a chave do grupo é
-// `parcelamento_id`; sem ele, as N linhas saem do mesmo INSERT e dividem o `created_at`
-// (o NOW() é o da transação). A descrição não serve de chave: compras distintas repetem.
-const vencimentoDe = (d) => d.data_vencimento || d.data || "";
-const grupoDaDespesa = (d, lista) => {
-  if (d.parcelamento_id) return lista.filter(x => x.parcelamento_id === d.parcelamento_id);
-  if (d.parcelas_total > 1 && d.created_at) return lista.filter(x => !x.parcelamento_id && x.parcelas_total === d.parcelas_total && x.created_at === d.created_at);
-  return [d];
-};
-const resumoGrupo = (grupo) => ({
-  valor: Math.round(grupo.reduce((s, d) => s + parseFloat(d.valor || 0), 0) * 100) / 100,
-  parcelas: grupo.length,
-  primeiroVencimento: grupo.map(vencimentoDe).sort()[0] || hojeISO(),
-  temPaga: grupo.some(d => d.status === "paga"),
-});
 
 // Crédito ao projeto original: fixo no código para acompanhar qualquer cópia.
 const REPO_URL = "https://github.com/ooliveira-ops/Financas-App";
@@ -128,37 +118,9 @@ function AppLogado({ session }) {
   const [bannerSaindo, setBannerSaindo] = useState(false);
   const [novidades, setNovidades] = useState({ versao: "", itens: [] });
 
+  // Usa as despesas já carregadas para saber o que já existe — sem nova query ao banco.
   const gerarDespesasAssinaturas = async (assinaturasData, despesasExistentes) => {
-    if (!assinaturasData || assinaturasData.length === 0) return [];
-    const mes = mesAtual();
-    const [ano, mesNum] = mes.split("-").map(Number);
-
-    // Usa as despesas já carregadas — sem nova query ao banco
-    // Filtra só despesas sem parcela (não são parcelamentos)
-    const chaves = new Set(
-      (despesasExistentes || [])
-        .filter(d => d.parcela_atual === null && d.parcelas_total === null)
-        .map(d => `${d.descricao}|${d.data_vencimento}`)
-    );
-
-    const novas = assinaturasData
-      .map(a => {
-        const dia = Math.min(parseInt(a.dia_vencimento), new Date(ano, mesNum, 0).getDate());
-        const dataVenc = `${mes}-${String(dia).padStart(2, "0")}`;
-        return { a, dataVenc };
-      })
-      .filter(({ a, dataVenc }) => !chaves.has(`${a.nome}|${dataVenc}`))
-      .map(({ a, dataVenc }) => ({
-        user_id: userId,
-        descricao: a.nome,
-        valor: a.valor,
-        data: dataVenc,
-        data_vencimento: dataVenc,
-        status: "pendente",
-        parcela_atual: null,
-        parcelas_total: null,
-      }));
-
+    const novas = despesasDeAssinaturas(assinaturasData, despesasExistentes, mesAtual(), userId);
     if (novas.length > 0) {
       const { data: inseridas, error } = await supabase.from("despesas").insert(novas).select();
       if (!error && inseridas) return inseridas;
@@ -299,43 +261,18 @@ function AppLogado({ session }) {
     notificar(`Saldo inicial ajustado para ${formatBRL(valorReal)} (${diferenca > 0 ? "+" : ""}${formatBRL(diferenca)}).`, "sucesso");
   };
 
-  // `parcelamentos` guarda só o acompanhamento; o dinheiro é a despesa de cada parcela.
-  // Por isso o progresso é recalculado a partir delas a cada mudança, nunca incrementado —
-  // assim as duas telas mostram o mesmo estado, independente de onde a parcela foi quitada.
+  // Todo caminho que muda as despesas de um parcelamento — pagar, apagar, editar — passa
+  // por aqui, para o progresso gravado ser sempre o derivado delas.
   const sincronizarParcelamento = async (parcelamentoId, listaDespesas) => {
-    const doParcelamento = listaDespesas.filter(d => d.parcelamento_id === parcelamentoId);
-    if (doParcelamento.length === 0) return;
-    const vencimento = (d) => d.data_vencimento || d.data || "";
-    const pagas = doParcelamento.filter(d => d.status === "paga");
-    const pendentes = doParcelamento.filter(d => d.status !== "paga").sort((a, b) => vencimento(a).localeCompare(vencimento(b)));
-    const ultimaPaga = [...pagas].sort((a, b) => vencimento(b).localeCompare(vencimento(a)))[0];
-    const { data, error } = await supabase.from("parcelamentos").update({
-      parcelas_pagas: pagas.length,
-      valor_pago: Math.round(pagas.reduce((s, d) => s + parseFloat(d.valor || 0), 0) * 100) / 100,
-      status: pendentes.length === 0 ? "finalizado" : "ativo",
-      proxima_parcela_data: pendentes.length > 0 ? vencimento(pendentes[0]) : (ultimaPaga ? vencimento(ultimaPaga) : null),
-    }).eq("id", parcelamentoId).select().maybeSingle();
+    const progresso = progressoParcelamento(listaDespesas, parcelamentoId);
+    if (!progresso) return;
+    const { data, error } = await supabase.from("parcelamentos").update(progresso).eq("id", parcelamentoId).select().maybeSingle();
     if (error) return notificar("Não foi possível atualizar o parcelamento: " + error.message);
     if (data) setParcelamentos(prev => prev.map(p => p.id === parcelamentoId ? data : p));
   };
 
-  const montarDespesas = (n) => {
-    const { parcelas, dataVencimento, valor, categoria_id, forma_pagamento, ...resto } = n;
-    // Select vazio devolve string, e coluna UUID/CHECK não aceita "" — vira NULL.
-    const vinculos = { categoria_id: categoria_id || null, forma_pagamento: forma_pagamento || null };
-    // `valor` é o total da compra; a divisão em centavos exatos é feita aqui.
-    return dividirEmParcelas(valor, parcelas).map((valorParcela, i) => {
-      const dataStr = somarMeses(dataVencimento, i);
-      return {
-        ...resto, ...vinculos, valor: valorParcela, user_id: userId, data: dataStr, data_vencimento: dataStr,
-        status: "pendente",
-        parcela_atual: parcelas > 1 ? i + 1 : null,
-        parcelas_total: parcelas > 1 ? parcelas : null,
-      };
-    });
-  };
   const adicionarDespesa = async (n) => {
-    const { data, error } = await supabase.from("despesas").insert(montarDespesas(n)).select();
+    const { data, error } = await supabase.from("despesas").insert(montarDespesas(n, userId)).select();
     if (error) { notificar("Não foi possível salvar a despesa: " + error.message); return []; }
     if (data) setDespesas(prev => [...prev, ...data]);
     return data || [];
@@ -365,7 +302,7 @@ function AppLogado({ session }) {
       setDespesas(lista);
     } else {
       if (atual.temPaga) return notificar("Esta compra tem parcela paga: valor, parcelas e vencimento não podem mudar. Apague e lance de novo, se precisar.");
-      const novas = montarDespesas({ ...n, ...(original.parcelamento_id ? { parcelamento_id: original.parcelamento_id } : {}) });
+      const novas = montarDespesas({ ...n, ...(original.parcelamento_id ? { parcelamento_id: original.parcelamento_id } : {}) }, userId);
       const { data: criadas, error } = await supabase.from("despesas").insert(novas).select();
       if (error || !criadas) return notificar("Não foi possível refazer as parcelas: " + (error?.message || ""));
       const { data: apagadas, error: erroApagar } = await supabase.from("despesas").delete().in("id", ids).select("id");
@@ -468,40 +405,24 @@ function AppLogado({ session }) {
     notificar(`Parcelamento "${data.descricao}" criado: ${parcelasTotal}x, ${formatBRL(data.valor_total)} no total.`, "sucesso");
   };
   // O botão da aba Parcelamentos quita a próxima parcela pendente — a mesma despesa que
-  // apareceria na aba Despesas. Parcelamento antigo, sem despesa vinculada, ainda avança
-  // pelo contador próprio: não há parcela para marcar.
+  // apareceria na aba Despesas.
   const marcarParcelaComoPaga = (id) => comTrava(id, async () => {
     const parc = parcelamentos.find(p => p.id === id);
     if (!parc) return;
     const vinculadas = despesas.filter(d => d.parcelamento_id === id);
     if (vinculadas.length > 0) {
-      const pendentes = vinculadas
-        .filter(d => d.status !== "paga")
-        .sort((a, b) => (a.data_vencimento || a.data || "").localeCompare(b.data_vencimento || b.data || ""));
-      if (pendentes.length === 0) return notificar("Todas as parcelas já foram pagas!", "info");
-      const proxima = pendentes[0];
-      const qual = proxima.parcela_atual && proxima.parcelas_total ? ` ${proxima.parcela_atual}/${proxima.parcelas_total}` : "";
+      const proxima = pendentesPorVencimento(vinculadas)[0];
+      if (!proxima) return notificar("Todas as parcelas já foram pagas!", "info");
+      const qual = textoParcela(proxima) ? ` ${textoParcela(proxima)}` : "";
       return pagarDespesas([proxima.id], `Parcela${qual} de "${parc.descricao}" paga`);
     }
     if (parc.parcelas_pagas >= parc.parcelas_total) return notificar("Todas as parcelas já foram pagas!", "info");
-    const novasParcelas = parc.parcelas_pagas + 1;
-    const ehUltima = novasParcelas >= parc.parcelas_total;
-    // A última parcela fecha no total exato, para não sobrar nem faltar centavo.
-    const novoValorPago = ehUltima
-      ? parseFloat(parc.valor_total)
-      : Math.round(((parc.valor_pago || 0) + parc.valor_total / parc.parcelas_total) * 100) / 100;
-    const { data, error } = await supabase.from("parcelamentos").update({
-      parcelas_pagas: novasParcelas,
-      valor_pago: novoValorPago,
-      status: ehUltima ? "finalizado" : "ativo",
-      proxima_parcela_data: ehUltima || !parc.proxima_parcela_data
-        ? parc.proxima_parcela_data
-        : somarMeses(parc.proxima_parcela_data, 1),
-    }).eq("id", id).select().maybeSingle();
+    const avanco = avancoSemDespesas(parc);
+    const { data, error } = await supabase.from("parcelamentos").update(avanco).eq("id", id).select().maybeSingle();
     if (error) return notificar("Não foi possível atualizar o parcelamento: " + error.message);
     if (!data) return notificar("O parcelamento não foi atualizado. Recarregue a página e tente de novo.");
     setParcelamentos(prev => prev.map(p => p.id === id ? data : p));
-    notificar(`Parcela ${novasParcelas}/${parc.parcelas_total} de "${parc.descricao}" marcada como paga.`, "sucesso");
+    notificar(`Parcela ${avanco.parcelas_pagas}/${parc.parcelas_total} de "${parc.descricao}" marcada como paga.`, "sucesso");
   });
   const removerParcelamento = (id) => pedirConfirmacao("Apagar este parcelamento? As despesas das parcelas continuam na lista.", async () => {
     const alvo = parcelamentos.find(p => p.id === id);
@@ -558,56 +479,26 @@ function AppLogado({ session }) {
     return () => { clearTimeout(timerSaida); clearTimeout(timerSome); };
   }, [mostrarBanner]);
 
-  const despesasPendentes = useMemo(() => despesas.filter(d => d.status === "pendente" || !d.status), [despesas]);
-  const despesasPagas = useMemo(() => despesas.filter(d => d.status === "paga"), [despesas]);
-  const totalReceitasMes = useMemo(() => receitas.filter(r => (r.mes || mesAtual()) === mesAtual()).reduce((s, r) => s + parseFloat(r.valor || 0), 0), [receitas]);
-  const totalAssinaturasMes = useMemo(() => assinaturas.reduce((s, a) => s + parseFloat(a.valor || 0), 0), [assinaturas]);
-  const despesasPagasMesAtual = useMemo(() => despesasPagas.filter(d => d.data_pagamento && d.data_pagamento.startsWith(mesAtual())), [despesasPagas]);
-  const totalDespesasPagasMes = useMemo(() => despesasPagasMesAtual.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPagasMesAtual]);
-  // Assinaturas só entram no "Pago" se houver despesa gerada por elas e marcada como paga no mês
-  // O card "Pago" mostra só despesas efetivamente pagas no mês atual
-  const totalDespesasMes = totalDespesasPagasMes;
-  // SALDO ACUMULADO: soma receitas e despesas pagas de TODA a história, não só do mês atual.
-  // É assim que o saldo final de um mês (ex: R$160 sobrando) passa automaticamente para o mês seguinte,
-  // sem precisar adicionar manualmente.
-  const totalReceitasGeral = useMemo(() => receitas.reduce((s, r) => s + parseFloat(r.valor || 0), 0), [receitas]);
-  const totalDespesasPagasGeral = useMemo(() => despesasPagas.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPagas]);
-  // Parcelamentos entram no saldo pelas despesas que o banco gera para cada parcela,
-  // não por `valor_pago` — somar os dois descontaria o mesmo dinheiro duas vezes.
-  const temReceitaNoMes = totalReceitasGeral > 0;
-  const saldo = temReceitaNoMes ? totalReceitasGeral - totalDespesasPagasGeral : null;
-  // SALDO DO MÊS: só o que entrou e o que foi pago dentro do mês corrente, sem herdar
-  // o que sobrou dos meses anteriores. Entra no relatório como resultado do mês.
-  const temMovimentoNoMes = totalReceitasMes > 0 || totalDespesasPagasMes > 0;
-  const saldoMes = temMovimentoNoMes ? totalReceitasMes - totalDespesasPagasMes : null;
-  // SALDO INICIAL: o que sobrou (ou faltou) até o fim do mês anterior — é com ele que o
-  // mês começa. Despesa paga sem `data_pagamento` (registro antigo) conta como anterior:
-  // ela já entra no saldo atual, e deixá-la de fora inflaria o saldo inicial.
-  const composicaoSaldoInicial = useMemo(() => {
-    const mes = mesAtual();
-    const soma = (lista) => Math.round(lista.reduce((s, x) => s + parseFloat(x.valor || 0), 0) * 100) / 100;
-    const receitasAntes = receitas.filter(r => r.mes && r.mes < mes);
-    const ajustes = receitasAntes.filter(r => r.fonte === FONTE_AJUSTE);
-    const pagasAntes = despesasPagas.filter(d => !d.data_pagamento || d.data_pagamento.substring(0, 7) < mes);
-    const vencimento = (d) => (d.data_vencimento || d.data || "").substring(0, 7);
-    return {
-      receitas: soma(receitasAntes.filter(r => r.fonte !== FONTE_AJUSTE)),
-      ajustes,
-      totalAjustes: soma(ajustes),
-      pagas: soma(pagasAntes),
-      pagasSemData: soma(pagasAntes.filter(d => !d.data_pagamento)),
-      // Pistas para quando o saldo inicial não bate com o banco:
-      pendentesAntigas: soma(despesasPendentes.filter(d => vencimento(d) && vencimento(d) < mes)),
-      antigasPagasNoMes: soma(despesasPagas.filter(d => d.data_pagamento?.startsWith(mes) && vencimento(d) && vencimento(d) < mes)),
-      saldo: Math.round((soma(receitasAntes) - soma(pagasAntes)) * 100) / 100,
-    };
-  }, [receitas, despesasPagas, despesasPendentes]);
+  const hoje = hojeISO();
+  const mes = hoje.substring(0, 7);
+  const { pendentes: despesasPendentes, pagas: despesasPagas } = useMemo(() => separarPorStatus(despesas), [despesas]);
+  const totalReceitasMes = useMemo(() => somaValores(receitasDoMes(receitas, mes)), [receitas, mes]);
+  const totalAssinaturasMes = useMemo(() => somaValores(assinaturas), [assinaturas]);
+  // O card "Pago" mostra só despesas efetivamente pagas no mês atual; assinatura entra
+  // nele pela despesa que gerou, quando marcada como paga.
+  const totalDespesasMes = useMemo(() => somaValores(pagasNoMes(despesasPagas, mes)), [despesasPagas, mes]);
+  const { temReceita: temReceitaNoMes, saldo } = useMemo(() => calcularSaldo(receitas, despesasPagas), [receitas, despesasPagas]);
+  const { temMovimento: temMovimentoNoMes, saldo: saldoMes } = calcularSaldoMes(totalReceitasMes, totalDespesasMes);
+  const composicaoSaldoInicial = useMemo(
+    () => calcularComposicaoSaldoInicial({ receitas, pagas: despesasPagas, pendentes: despesasPendentes, mes }),
+    [receitas, despesasPagas, despesasPendentes, mes],
+  );
   const saldoInicial = composicaoSaldoInicial.saldo;
   // "A PAGAR" GERAL: soma TODAS as despesas pendentes, de qualquer mês (não só do mês atual),
   // para nada "desaparecer" quando o mês virar. Na aba Despesas dá pra filtrar por mês específico.
-  const totalPendentesGeral = useMemo(() => despesasPendentes.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [despesasPendentes]);
-  const proximasAssinaturas = useMemo(() => { const hoje = new Date(); const diaH = hoje.getDate(); return [...assinaturas].map(a => { const dia = parseInt(a.dia_vencimento || 5); let dr = dia >= diaH ? dia - diaH : (new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate()) - diaH + dia; return { ...a, diasRestantes: dr }; }).sort((a, b) => a.diasRestantes - b.diasRestantes); }, [assinaturas]);
-  const avisoDespesas = useMemo(() => { const hoje = new Date(); hoje.setHours(0,0,0,0); const limite = new Date(hoje); limite.setDate(limite.getDate() + 7); const vencidas = []; const vencendo = []; despesasPendentes.forEach(d => { if (!d.data_vencimento) return; const v = new Date(d.data_vencimento + "T00:00:00"); if (v < hoje) vencidas.push(d); else if (v <= limite) vencendo.push(d); }); return { vencidas, vencendo }; }, [despesasPendentes]);
+  const totalPendentesGeral = useMemo(() => somaValores(despesasPendentes), [despesasPendentes]);
+  const proximasAssinaturas = useMemo(() => calcularProximasAssinaturas(assinaturas, hoje), [assinaturas, hoje]);
+  const avisoDespesas = useMemo(() => avisosDeVencimento(despesasPendentes, hoje), [despesasPendentes, hoje]);
 
   // O aviso fica sobre o canto do cabeçalho (Sair, GitHub): some sozinho depois de 6s.
   const temAvisoContas = !carregandoDados && (avisoDespesas.vencidas.length > 0 || avisoDespesas.vencendo.length > 0);
@@ -989,11 +880,9 @@ function PainelNovidades() {
   );
 }
 
-// A parcela vive em coluna, não na descrição: sem isto duas parcelas da mesma compra
-// aparecem com o mesmo texto na lista.
 const rotuloParcela = (d) =>
-  d.parcela_atual && d.parcelas_total
-    ? <span className="font-mono-c text-[10px] text-slate-400/50 ml-2">{d.parcela_atual}/{d.parcelas_total}</span>
+  textoParcela(d)
+    ? <span className="font-mono-c text-[10px] text-slate-400/50 ml-2">{textoParcela(d)}</span>
     : null;
 
 // Um mês por vez, em linha única. Um botão por mês cresce junto com o histórico e,
@@ -1026,12 +915,7 @@ function SeletorMes({ meses, valor, onChange, incluirTodos = false, rotuloTodos 
 
 // ── HISTÓRICO ────────────────────────────────────────────────────────────────────
 function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome, onAviso }) {
-  const mesesComDespesas = useMemo(() => {
-    const s = new Set();
-    despesas.forEach(d => { if (d.status === "paga" && d.data_pagamento) s.add(d.data_pagamento.substring(0,7)); if (d.status !== "paga" && d.data_vencimento) s.add(d.data_vencimento.substring(0,7)); });
-    s.add(mesAtual());
-    return [...s].sort((a,b) => b.localeCompare(a));
-  }, [despesas]);
+  const mesesComDespesas = useMemo(() => mesesDoHistorico(despesas, mesAtual()), [despesas]);
   // Abre no mês atual, não no mais recente da lista: parcelas futuras pendentes
   // empurrariam a abertura para o último mês parcelado.
   const [mesSelecionado, setMesSelecionado] = useState(mesAtual);
@@ -1040,9 +924,8 @@ function HistoricoAba({ despesas, assinaturas, receitas, parcelamentos, userNome
   useEffect(() => {
     if (!mesesComDespesas.includes(mesSelecionado)) setMesSelecionado(mesAtual());
   }, [mesesComDespesas, mesSelecionado]);
-  const despesasDomes = useMemo(() => despesas.filter(d => { if (d.status === "paga") return d.data_pagamento?.startsWith(mesSelecionado); return (d.data_vencimento || d.data)?.startsWith(mesSelecionado); }).sort((a,b) => (b.data_vencimento||b.data||"").localeCompare(a.data_vencimento||a.data||"")), [despesas, mesSelecionado]);
-  const totalPago = useMemo(() => despesasDomes.filter(d => d.status === "paga").reduce((s,d) => s + parseFloat(d.valor||0), 0), [despesasDomes]);
-  const totalPendente = useMemo(() => despesasDomes.filter(d => d.status !== "paga").reduce((s,d) => s + parseFloat(d.valor||0), 0), [despesasDomes]);
+  const despesasDomes = useMemo(() => despesasDoMesNoHistorico(despesas, mesSelecionado), [despesas, mesSelecionado]);
+  const { pago: totalPago, pendente: totalPendente } = useMemo(() => totaisPagoPendente(despesasDomes), [despesasDomes]);
 
   const gerarPDFMes = async () => {
     try {
@@ -1106,8 +989,8 @@ function HomeAba({ quote, saldo, saldoInicial, composicaoSaldoInicial, onAjustar
       doc.setFontSize(9); doc.setTextColor(120,120,140); doc.text(`Usuário: ${userNome}   |   Mês: ${nomeMes(mesAtual())}   |   ${new Date().toLocaleDateString("pt-BR")}`, pw/2, y, {align:"center"}); doc.setTextColor(0,0,0); y+=15;
       // O resumo mistura valores do mês com acumulados, por isso cada linha traz o
       // período: as tabelas seguintes listam apenas o mês corrente.
-      const dpe = despesas.filter(d=>(d.status==="pendente"||!d.status)&&(d.data_vencimento||d.data)?.startsWith(mesAtual()));
-      const totalPendentesDoMes = dpe.reduce((s,d)=>s+parseFloat(d.valor||0),0);
+      const dpe = pendentesDoMes(despesas, mesAtual());
+      const totalPendentesDoMes = somaValores(dpe);
       const mesRef = nomeMes(mesAtual());
       autoTable(doc, {startY:y, head:[["Item","Valor"]], body:[
         [`Receitas (${mesRef})`, formatBRL(totalReceitasMes)],
@@ -1260,70 +1143,23 @@ function DespesasAba({ despesasPendentes, despesasPagas, categorias, emAndamento
     : categorias.filter((c, i) => i < LIMITE_CATEGORIAS || c.id === categoriaFiltro);
   const ocultas = categorias.length - categoriasVisiveis.length;
 
-  // A fatura não é tabela própria: é o agrupamento das despesas pendentes no cartão pelo
-  // mês de vencimento. Pagar a fatura marca essas despesas como pagas — o dinheiro sai do
-  // saldo uma vez só, pelas mesmas linhas que o pagamento individual usaria.
-  const faturas = useMemo(() => {
-    const mapa = new Map();
-    despesasPendentes.filter(d => d.forma_pagamento === "cartao").forEach(d => {
-      const mes = (d.data_vencimento || d.data || "").substring(0, 7);
-      if (!mes) return;
-      if (!mapa.has(mes)) mapa.set(mes, []);
-      mapa.get(mes).push(d);
-    });
-    // Fatura de mês anterior ainda pendente está vencida: continua visível no mês filtrado.
-    return [...mapa.entries()]
-      .filter(([mes]) => mesFiltro === "todos" || mes <= mesFiltro)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([mes, itens]) => ({ mes, ids: itens.map(d => d.id), total: Math.round(itens.reduce((s, d) => s + parseFloat(d.valor || 0), 0) * 100) / 100 }));
-  }, [despesasPendentes, mesFiltro]);
+  const faturas = useMemo(() => faturasDoCartao(despesasPendentes, mesFiltro), [despesasPendentes, mesFiltro]);
   const nomeCategoria = (id) => categorias.find(c => c.id === id)?.nome;
   const corCategoria = (id) => categorias.find(c => c.id === id)?.cor || "#60a5fa";
 
-  // Lista de meses que têm alguma despesa (pendente ou paga), do mais recente pro mais antigo
-  const mesesDisponiveis = useMemo(() => {
-    const s = new Set();
-    despesasPendentes.forEach(d => { const dr = d.data_vencimento || d.data; if (dr) s.add(dr.substring(0, 7)); });
-    despesasPagas.forEach(d => { if (d.data_pagamento) s.add(d.data_pagamento.substring(0, 7)); });
-    s.add(mesAtual());
-    return [...s].sort((a, b) => b.localeCompare(a));
-  }, [despesasPendentes, despesasPagas]);
-
-  const pendentesAnteriores = useMemo(() => {
-    if (mesFiltro === "todos") return null;
-    const antigas = despesasPendentes.filter(d => { const ref = (d.data_vencimento || d.data || "").substring(0, 7); return ref && ref < mesFiltro; });
-    return antigas.length > 0 ? { qtd: antigas.length, total: antigas.reduce((s, d) => s + parseFloat(d.valor || 0), 0) } : null;
-  }, [despesasPendentes, mesFiltro]);
+  const mesesDisponiveis = useMemo(() => mesesComDespesas(despesasPendentes, despesasPagas, mesAtual()), [despesasPendentes, despesasPagas]);
+  const pendentesAnteriores = useMemo(() => calcularPendentesAnteriores(despesasPendentes, mesFiltro), [despesasPendentes, mesFiltro]);
 
   const listaBase = subAba === "pendentes" ? despesasPendentes : despesasPagas;
-  const lista = useMemo(() => {
-    return listaBase.filter(d => {
-      const casaCategoria = categoriaFiltro === "todas"
-        || (categoriaFiltro === "sem" ? !d.categoria_id : d.categoria_id === categoriaFiltro);
-      if (!casaCategoria) return false;
-      if (soCartao && d.forma_pagamento !== "cartao") return false;
-      if (mesFiltro === "todos") return true;
-      const ref = subAba === "pendentes" ? (d.data_vencimento || d.data) : d.data_pagamento;
-      return ref && ref.startsWith(mesFiltro);
-    });
-  }, [listaBase, mesFiltro, categoriaFiltro, soCartao, subAba]);
-
-  const total = useMemo(() => lista.reduce((s, d) => s + parseFloat(d.valor || 0), 0), [lista]);
+  const lista = useMemo(
+    () => filtrarDespesas(listaBase, { subAba, mes: mesFiltro, categoria: categoriaFiltro, soCartao }),
+    [listaBase, mesFiltro, categoriaFiltro, soCartao, subAba],
+  );
+  const total = useMemo(() => somaValores(lista), [lista]);
 
   // Com vários meses na tela, a data solta em cada linha não diz a que período o bloco
   // pertence. Agrupar dá esse enquadramento e ainda mostra quanto pesa cada mês.
-  const grupos = useMemo(() => {
-    const referencia = (d) => (subAba === "pendentes" ? (d.data_vencimento || d.data) : d.data_pagamento) || "";
-    const mapa = new Map();
-    [...lista].sort((a, b) => referencia(b).localeCompare(referencia(a))).forEach(d => {
-      const mes = referencia(d).substring(0, 7) || "sem-data";
-      if (!mapa.has(mes)) mapa.set(mes, []);
-      mapa.get(mes).push(d);
-    });
-    return [...mapa.entries()].map(([mes, itens]) => ({
-      mes, itens, subtotal: itens.reduce((s, d) => s + parseFloat(d.valor || 0), 0),
-    }));
-  }, [lista, subAba]);
+  const grupos = useMemo(() => agruparPorMes(lista, subAba), [lista, subAba]);
 
   return (
     <div className="space-y-8 animate-fadeInUp">

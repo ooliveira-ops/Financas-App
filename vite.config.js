@@ -58,6 +58,7 @@ export default defineConfig(({ mode }) => ({
       reporter: ['text', 'html', 'lcov'],
       thresholds: {
         'src/utils.js': { statements: 95, branches: 95, functions: 95, lines: 95 },
+        'src/calculos.js': { statements: 95, branches: 95, functions: 95, lines: 95 },
       },
     },
   },

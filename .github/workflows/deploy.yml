@@ -2,9 +2,13 @@
 # e2e passarem — é isso que garante que nada vai ao ar sem teste. A integração Git da
 # Vercel fica desligada (git.deploymentEnabled no vercel.json) para não publicar antes.
 #
+# O build de publicação acontece na Vercel, não aqui: as VITE_* são variáveis
+# "sensitive", que nunca saem da Vercel — um `vercel build` no runner as receberia como
+# "[SENSITIVE]" e embutiria isso no app. Assim, nenhuma chave passa pelo GitHub.
+#
 # Precisa dos secrets VERCEL_TOKEN, VERCEL_ORG_ID e VERCEL_PROJECT_ID (passo a passo em
 # deploy/README.md). Sem eles o deploy é pulado com um aviso, sem falhar o CI — caso de
-# quem clonou e ainda não configurou, e de PR vindo de fork.
+# quem clonou e ainda não configurou.
 name: Deploy
 
 on:
@@ -50,25 +54,14 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
-      - if: steps.secrets.outputs.configurados == 'true'
-        run: npm ci
       # Versão principal fixa: uma major nova do CLI não muda o pipeline sem aviso.
       - if: steps.secrets.outputs.configurados == 'true'
         run: npm install --global vercel@62
 
-      # Traz as configurações do projeto e as VITE_* do ambiente (Preview ou Production)
-      # cadastradas na Vercel: o build roda aqui, com elas.
-      - name: Baixa as configurações da Vercel
-        if: steps.secrets.outputs.configurados == 'true'
-        run: vercel pull --yes --environment="$AMBIENTE" --token="$VERCEL_TOKEN"
-      - name: Build
-        if: steps.secrets.outputs.configurados == 'true'
-        run: vercel build $ALVO --token="$VERCEL_TOKEN"
-      - name: Publica
+      - name: Publica (build na Vercel)
         if: steps.secrets.outputs.configurados == 'true'
         run: |
-          url=$(vercel deploy --prebuilt $ALVO --token="$VERCEL_TOKEN")
+          url=$(vercel deploy $ALVO --yes --token="$VERCEL_TOKEN")
           echo "Publicado ($AMBIENTE): $url"
           {
             echo "### Deploy na Vercel ($AMBIENTE)"

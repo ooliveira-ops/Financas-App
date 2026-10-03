@@ -27,13 +27,16 @@ Na Vercel, **só vai ao ar o que passou nos testes**. A integração Git da Verc
 é o próprio CI (`.github/workflows/ci.yml`), no último job, depois de build, testes
 unitários e e2e passarem:
 
-| Push em | Vai para | Comandos |
+| Push em | Vai para | Comando |
 |---|---|---|
-| `dev` | **Preview** (URL própria) | `vercel pull` → `vercel build` → `vercel deploy --prebuilt` |
-| `main` | **Produção** | os mesmos, com `--prod` |
+| `dev` | **Preview** (URL própria) | `vercel deploy` |
+| `main` | **Produção** | `vercel deploy --prod` |
 | PR | nada é publicado | só os testes rodam |
 
-O deploy em si fica em `.github/workflows/deploy.yml`, chamado pelo `ci.yml`.
+O deploy em si fica em `.github/workflows/deploy.yml`, chamado pelo `ci.yml`. O build de
+publicação roda **na Vercel**, não no GitHub: as `VITE_*` cadastradas como *sensitive*
+nunca saem da Vercel, então um build no runner sairia sem as chaves. O que garante o
+"só depois dos testes" é o job de deploy só começar com os testes verdes.
 
 > ⚠️ Com a integração Git desligada, **sem os três secrets abaixo nada é publicado** —
 > nem o preview, nem a produção. O CI passa, com o aviso "Deploy pulado". Configure os
@@ -47,11 +50,16 @@ variables → Actions → New repository secret**.
 | Secret | Onde pegar |
 |---|---|
 | `VERCEL_TOKEN` | vercel.com → avatar → **Account Settings → Tokens → Create**. Escopo: o time/conta do projeto. Copie na hora: ele não aparece de novo |
-| `VERCEL_ORG_ID` | No projeto, rode `npx vercel link` uma vez; o arquivo `.vercel/project.json` (ignorado pelo git) traz o `orgId`. Ou: Vercel → **Team/Account Settings → General → ID** |
-| `VERCEL_PROJECT_ID` | O `projectId` do mesmo `.vercel/project.json`. Ou: projeto na Vercel → **Settings → General → Project ID** |
+| `VERCEL_ORG_ID` | O **dono do projeto** na Vercel. Mesmo em conta pessoal, a Vercel cria um time padrão ("…'s projects"), e o ID dele começa com **`team_`**. Rode `npx vercel link` no projeto: o `orgId` está em `.vercel/project.json` ou `.vercel/repo.json` (ignorados pelo git). **Não** use o ID de *Account Settings*: esse é o do usuário, e o deploy falha com `Project not found` |
+| `VERCEL_PROJECT_ID` | O `projectId` (começa com **`prj_`**) do mesmo arquivo. Ou: projeto na Vercel → **Settings → General → Project ID** |
 
 As `VITE_*` continuam nas **Environment Variables** da Vercel, marcadas para
-**Production** e **Preview**: o `vercel pull` as traz para o build do Actions.
+**Production** e **Preview** — o build roda na Vercel e as recebe de lá. Podem ser do
+tipo *sensitive*: elas nunca passam pelo GitHub.
+
+> O `npx vercel link` (e outros comandos do CLI) acrescenta `.vercel` e `.env*` no fim
+> do `.gitignore`. Desfaça essa mudança antes de commitar: o `.env*` passaria a ignorar
+> o `.env.example`.
 
 **Deu certo se:** depois de um push no `dev`, o job **Deploy** do CI fica verde e o
 resumo da execução mostra a URL do preview. Para publicar sem commit novo: aba

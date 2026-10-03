@@ -356,7 +356,7 @@ O relatório PDF segue a mesma lógica e traz o período em cada linha do resumo
 - Cada deploy tem **Supabase e tokens próprios e independentes**
 - O token é **verificado** antes do cadastro e **consumido** só depois de a conta ser criada com sucesso
 - Sem confirmar email: desative em Authentication → Providers → Email → "Confirm email"
-- Testes unitários com `npm test` e e2e com `npm run test:e2e` (detalhes em [`tests/`](tests/README.md)). Os unitários cobrem as contas, o login e os fluxos do app com o banco simulado; os e2e rodam os fluxos principais no navegador contra um Supabase local, incluindo RLS e permissões de admin. Mudança de cálculo ainda deve ser conferida na interface
+- Testes unitários com `npm test` e e2e com `npm run test:e2e` (detalhes em [`tests/`](tests/README.md)). Os unitários cobrem as contas, o login e os fluxos do app com o banco simulado; os e2e rodam os fluxos principais no navegador contra um Supabase local, incluindo RLS e permissões de admin. Os dois rodam sozinhos no **GitHub Actions** em todo pull request e push para `dev` e `main`, sem nenhum segredo. Mudança de cálculo ainda deve ser conferida na interface
 
 ---
 

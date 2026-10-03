@@ -106,6 +106,32 @@ test('o que o usuário consegue fazer', async ({ page, dados }) => {
 
 ---
 
+## 🤖 CI (GitHub Actions)
+
+O `.github/workflows/ci.yml` roda tudo isso sozinho em todo **pull request** e em todo
+**push** para `dev` e `main` — e só nesses branches.
+
+| Job | O que faz | Depende de |
+|---|---|---|
+| `build` | `npm ci` + `npm run build` | — |
+| `unit` | `npm run test:coverage` (falha se a cobertura cair abaixo do piso); a cobertura fica como artefato | `build` |
+| `e2e` | Sobe o Supabase local em Docker a partir do schema e roda `npm run test:e2e`; se falhar, o relatório e os traces ficam como artefato | `unit` |
+
+- **Nenhum segredo é usado**: o e2e roda contra o banco local do próprio runner. PR
+  vindo de fork, que não recebe secrets, roda igual.
+- Node **24** (LTS) e cache do npm e dos navegadores do Playwright.
+- Push novo no mesmo branch cancela a execução anterior.
+- O runner roda em **UTC**; os testes de data já cobrem esse fuso.
+
+**Onde ver:** aba **Actions** do repositório. Execução que falhou → job vermelho →
+**Artifacts** no fim da página: `playwright-relatorio` (abra o `index.html` de
+`playwright-report/`, ou `npx playwright show-trace` no `.zip` de `test-results/`).
+
+Para conferir o arquivo do workflow antes de enviar, use o
+[actionlint](https://github.com/rhysd/actionlint): `actionlint .github/workflows/ci.yml`.
+
+---
+
 ## ✍️ Escrever um teste novo
 
 - **Unitário ou e2e?** Conta, regra e componente → `unit/`. Fluxo que só faz sentido

@@ -21,6 +21,7 @@ import {
   filtrarDespesas, agruparPorMes, textoParcela, grupoDaDespesa, resumoGrupo, montarDespesas,
   pendentesPorVencimento, progressoParcelamento, avancoSemDespesas, despesasDeAssinaturas,
 } from "./calculos";
+import { buscarTodos as buscarTodosDoBanco } from "./dados";
 
 // Carregada sob demanda para manter o recharts fora do bundle inicial.
 const GraficoAba = lazy(() => import("./GraficoAba"));
@@ -128,22 +129,7 @@ function AppLogado({ session }) {
     return [];
   };
 
-  // O PostgREST corta a resposta no "max rows" do projeto (1000 por padrão) sem devolver
-  // erro, e o saldo acumulado depende do histórico completo — daí a paginação.
-  // PAGINA fica abaixo do limite para que "página curta = última página" seja válido.
-  const PAGINA = 500;
-  const buscarTodos = async (tabela) => {
-    let todos = [];
-    for (let inicio = 0; ; inicio += PAGINA) {
-      const { data, error } = await supabase
-        .from(tabela).select("*").eq("user_id", userId)
-        .order("id", { ascending: true })
-        .range(inicio, inicio + PAGINA - 1);
-      if (error) throw error;
-      todos = todos.concat(data || []);
-      if (!data || data.length < PAGINA) return todos;
-    }
-  };
+  const buscarTodos = (tabela) => buscarTodosDoBanco(supabase, tabela, userId);
 
   // A chamada do supabase-js só vai à rede quando a promise é consumida: construir a
   // query e descartá-la não dispara requisição nenhuma. Por isso o registro fica numa
@@ -889,7 +875,7 @@ const rotuloParcela = (d) =>
 // em tela estreita, empurra a lista de lançamentos para fora da primeira dobra.
 // O `select` nativo abre o seletor do próprio sistema no celular; as setas atendem
 // a navegação sequencial, que é o uso comum no desktop.
-function SeletorMes({ meses, valor, onChange, incluirTodos = false, rotuloTodos = "Todos os meses" }) {
+export function SeletorMes({ meses, valor, onChange, incluirTodos = false, rotuloTodos = "Todos os meses" }) {
   const opcoes = incluirTodos ? ["todos", ...meses] : meses;
   if (opcoes.length === 0) return <p className="font-body text-slate-400/50 text-sm">Nenhum mês ainda.</p>;
   const atual = opcoes.indexOf(valor);
@@ -1050,7 +1036,7 @@ function HomeAba({ quote, saldo, saldoInicial, composicaoSaldoInicial, onAjustar
   );
 }
 
-function CardResumo({ label, escopo, valor, icon: Icon, cor, delay }) {
+export function CardResumo({ label, escopo, valor, icon: Icon, cor, delay }) {
   return (
     <div className={`animate-fadeInUp delay-${delay} rounded-2xl p-6 border bg-[#0d1829] border-blue-900/30`}>
       <div className="flex items-center justify-between mb-3"><span className="font-mono-c text-[10px] text-slate-400/50 uppercase">{label}</span><Icon size={16} className={cor}/></div>
@@ -1059,7 +1045,7 @@ function CardResumo({ label, escopo, valor, icon: Icon, cor, delay }) {
     </div>
   );
 }
-function CardSaldo({ label, escopo, saldo, temReceita, delay, onClick, acao }) {
+export function CardSaldo({ label, escopo, saldo, temReceita, delay, onClick, acao }) {
   const Tag = onClick ? "button" : "div";
   return (
     <Tag onClick={onClick} className={`animate-fadeInUp delay-${delay} rounded-2xl p-6 border bg-[#0d1829] border-blue-500/30 text-left w-full ${onClick ? "hover:border-blue-400/60 active:scale-[0.99] transition" : ""}`}>

@@ -56,7 +56,9 @@ export default defineConfig(({ mode }) => ({
       provider: 'v8',
       include: ['src/**/*.{js,jsx}', 'api/**/*.js'],
       reporter: ['text', 'html', 'lcov'],
+      // O piso global só pode subir: o App.jsx é monolítico e ainda tem tela sem teste.
       thresholds: {
+        statements: 60, branches: 75, functions: 55, lines: 60,
         'src/utils.js': { statements: 95, branches: 95, functions: 95, lines: 95 },
         'src/calculos.js': { statements: 95, branches: 95, functions: 95, lines: 95 },
       },

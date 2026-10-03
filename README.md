@@ -44,7 +44,8 @@ App de controle financeiro pessoal com receitas, despesas parceladas, categorias
 
 ```
 src/
-├── App.jsx         # Estado global, abas, modais, cálculos, painel admin, relatório PDF
+├── App.jsx         # Estado global, abas, modais, painel admin, relatório PDF
+├── calculos.js     # Contas do app (saldos, totais, faturas, parcelas) como funções puras
 ├── Auth.jsx        # Login, cadastro com token e recuperação de senha
 ├── GraficoAba.jsx  # Aba Gráfico — carregada sob demanda, mantém o Recharts fora do bundle inicial
 ├── Ajuda.jsx       # Textos do botão "Dúvidas" (AJUDA_CONTEUDO)
@@ -347,7 +348,7 @@ O relatório PDF segue a mesma lógica e traz o período em cada linha do resumo
 - Cada deploy tem **Supabase e tokens próprios e independentes**
 - O token é **verificado** antes do cadastro e **consumido** só depois de a conta ser criada com sucesso
 - Sem confirmar email: desative em Authentication → Providers → Email → "Confirm email"
-- Testes unitários com `npm test` (detalhes em [`tests/`](tests/README.md)). Eles cobrem os helpers de data e dinheiro, não as telas: mudança de cálculo ainda deve ser conferida na interface
+- Testes unitários com `npm test` (detalhes em [`tests/`](tests/README.md)). Eles cobrem os helpers de data e dinheiro e as contas de `src/calculos.js`, não as telas: mudança de cálculo ainda deve ser conferida na interface
 
 ---
 

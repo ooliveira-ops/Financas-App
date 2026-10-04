@@ -7,6 +7,13 @@ dist-ssr
 .vscode
 .vite
 
+# Relatórios e builds de teste
+coverage
+dist-e2e
+playwright-report
+test-results
+blob-report
+
 # ==================================================
 # DADOS SENSÍVEIS — NUNCA enviar pro GitHub
 # ==================================================
@@ -20,6 +27,7 @@ tokens.txt
 .env
 .env.*
 !.env.example
+!.env.test.example
 
 # Credenciais e segredos
 credenciais.json
@@ -37,9 +45,10 @@ config.local.ts
 *.csv
 *.sql.gz
 
-# Dump SQL entra barrado por padrão; só o schema versionado é liberado.
+# Dump SQL entra barrado por padrão; só o schema e o seed fictício são liberados.
 *.sql
-!supabase-setup.sql
+!supabase/supabase-setup.sql
+!supabase/seed.sql
 !supabase/migrations/*.sql
 
 # Vínculo do projeto na Vercel (orgId / projectId)

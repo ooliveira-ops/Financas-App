@@ -1,0 +1,117 @@
+# Build e testes em todo PR e em todo push para dev e main; depois do push, e só com tudo
+# verde, o deploy na Vercel (dev → preview, main → produção).
+#
+# Só dev e main: o repositório de backup recebe o branch espelho-v2, que não pode
+# disparar pipeline. Os testes não usam segredo — o e2e roda contra um Supabase local em
+# Docker —, então PR vindo de fork (que não recebe secrets) roda igual.
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+  # Rodar à mão (aba Actions): primeiro deploy de quem acabou de configurar os secrets,
+  # ou republicar sem commit novo.
+  workflow_dispatch:
+
+# Um push novo no mesmo branch/PR cancela a execução anterior, que já ficou velha — menos
+# na main, para não interromper um deploy de produção no meio.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  build:
+    name: Build
+    # Versão fixa: o ubuntu-latest muda de versão sozinho e pode quebrar o Playwright.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # Sem as VITE_* o build passa e o app só não conecta: aqui o que se testa é que
+      # o código compila. O build publicado recebe as variáveis na Vercel.
+      - run: npm run build
+
+  unit:
+    name: Testes unitários
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # Também confere os pisos de cobertura do vite.config.js.
+      - run: npm run test:coverage
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: cobertura
+          path: coverage/
+          retention-days: 14
+
+  e2e:
+    name: Testes e2e
+    needs: unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: Cache dos navegadores do Playwright
+        id: cache-playwright
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Instala o Chromium
+        if: steps.cache-playwright.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Instala só as dependências do sistema (navegador veio do cache)
+        if: steps.cache-playwright.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # Banco criado do zero a partir do supabase/supabase-setup.sql (seed do config.toml).
+      - name: Sobe o Supabase local
+        run: npx supabase start
+
+      - run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-relatorio
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+  deploy:
+    name: Deploy
+    needs: e2e
+    # PR nunca publica; push e execução manual publicam só a partir de dev e main.
+    if: github.event_name != 'pull_request' && (github.ref_name == 'dev' || github.ref_name == 'main')
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ambiente: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+    secrets: inherit

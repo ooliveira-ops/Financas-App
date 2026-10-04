@@ -6,24 +6,28 @@ import { ModalBase } from "./ModalBase";
 export const AJUDA_CONTEUDO = {
   home: {
     titulo: "Como funciona a Home",
-    explicacao: "A Home mostra um resumo geral: quanto entrou no mês (receitas), quanto já foi pago no mês, o saldo do mês, quanto ainda falta pagar somando todos os meses, e o saldo acumulado de toda a sua história. Também mostra suas próximas assinaturas e permite gerar um relatório em PDF.",
+    explicacao: "A Home mostra o mês em sequência: com quanto ele começou (saldo inicial), quanto entrou (receitas), quanto já foi pago e com quanto você está agora (saldo atual). Ao lado, quanto ainda falta pagar somando todos os meses. Também mostra suas próximas assinaturas e permite gerar um relatório em PDF.",
     passos: [
       "Cadastre suas receitas do mês na aba Receitas para o saldo aparecer aqui.",
+      "O 'Saldo inicial' é o que sobrou do mês anterior — ou o que faltou, em vermelho. Todo mês começa com ele. Toque no card para ver de onde vem o valor.",
+      "Se o saldo não bater com o banco, toque no card 'Saldo inicial' e use 'Registrar saldo atual': informe quanto você tem hoje no banco e o app guarda a diferença como uma 'correção do saldo' de antes deste mês — suas receitas e o pago do mês não mudam. Se você sabe quanto tinha no dia 1º, use 'Saldo do início do mês'. O saldo do início não é receita: é o que já estava na conta quando o mês começou. A lixeira ao lado de cada correção a desfaz.",
       "Conforme você marca despesas como pagas, os cards 'Pago' e 'A pagar' vão se atualizando sozinhos.",
-      "O 'Saldo do mês' é só do mês corrente: receitas deste mês menos as despesas pagas neste mês, sem contar o que sobrou de antes.",
-      "O 'Saldo acumulado' considera tudo desde o começo: o que sobrou de um mês passa automaticamente para o mês seguinte.",
+      "O 'Saldo atual' é o saldo inicial mais as receitas do mês, menos o que você pagou no mês.",
+      "Se o saldo inicial veio negativo, confira na aba Histórico o mês anterior: alguma receita pode não ter sido cadastrada.",
       "Clique em 'Gerar Relatório do Mês' quando quiser baixar um PDF com tudo o que aconteceu no mês.",
     ],
   },
   despesas: {
     titulo: "Como funciona Despesas",
-    explicacao: "Aqui ficam todos os seus gastos, separados em 'Pendentes' (ainda não pagos) e 'Histórico' (já pagos), do mais recente para o mais antigo. As parcelas de um parcelamento aparecem nesta mesma lista. Por padrão aparecem despesas de todos os meses, para nada ficar esquecido — use os botões de mês para filtrar um período.",
+    explicacao: "Aqui ficam todos os seus gastos, separados em 'Pendentes' (ainda não pagos) e 'Histórico' (já pagos), do mais recente para o mais antigo. As parcelas de um parcelamento aparecem nesta mesma lista. A aba abre sempre no mês atual; se houver pendências de meses anteriores, um aviso amarelo mostra quantas são. Ao lado do total fica o seu saldo atual, o mesmo da Início, que diminui na hora em que você marca uma despesa como paga.",
     passos: [
       "Clique em 'Nova' e preencha a descrição (ex: Almoço), o valor, a data de vencimento, a categoria e a forma de pagamento (Pix, cartão ou dinheiro).",
       "Crie suas próprias categorias em '+ Categoria' (ex: Faculdade) e escolha uma cor; clique numa categoria para ver só os gastos dela.",
       "Se quiser dividir em várias vezes, mude o campo 'Parcelas' — informe o valor TOTAL e o app divide sozinho. Para acompanhar o progresso parcela a parcela, use 'Parcelado'.",
-      "Quando pagar uma despesa, clique no ícone de check (✓) para marcá-la como paga e ela vai para o Histórico.",
-      "Use os botões de mês para ver só um período; 'Todos os meses' mostra tudo.",
+      "Errou algo? Toque no nome da despesa (ou no lápis, no computador) para editar descrição, valor, data, categoria, forma de pagamento ou parcelas. Numa compra parcelada a edição vale para todas as parcelas; se alguma já foi paga, valor, data e parcelas ficam travados.",
+      "Quando pagar uma despesa, clique no ícone de check (✓) para marcá-la como paga e ela vai para o Histórico. Um aviso verde confirma o pagamento — não precisa clicar de novo.",
+      "Compras no cartão entram na fatura do mês da data de vencimento. Em 'Pendentes', cada fatura mostra o total e o botão 'Pagar fatura', que paga todas as compras dela de uma vez. Também dá para pagar uma por uma pelo ✓.",
+      "Use os botões de mês para ver só um período; 'Todos os meses' mostra tudo. 'Só cartão' mostra apenas as compras no cartão.",
     ],
   },
   receitas: {
@@ -50,8 +54,9 @@ export const AJUDA_CONTEUDO = {
     passos: [
       "Clique em 'Novo' e informe a descrição (ex: Monitor), o valor total e em quantas parcelas foi dividido.",
       "Ao salvar, o app já cria uma despesa para cada parcela, com o vencimento de cada mês.",
-      "Marque cada parcela como paga na aba Despesas — é por lá que ela entra no saldo.",
-      "Aqui você acompanha o progresso: use 'Marcar próxima como paga' para atualizar a barra e a próxima data.",
+      "Cada parcela paga sai do saldo uma vez só, seja marcada aqui ou na aba Despesas.",
+      "Use 'Marcar próxima como paga' para quitar a próxima parcela. Um aviso confirma qual parcela foi paga; cada clique paga mais uma.",
+      "Com todas as parcelas pagas, aparece 'Marcar como concluído': o parcelamento sai da lista e fica guardado em 'Concluídos', no fim da tela. De lá dá para reabrir ou apagar. As despesas das parcelas não mudam.",
     ],
   },
   grafico: {
@@ -65,7 +70,7 @@ export const AJUDA_CONTEUDO = {
   },
   historico: {
     titulo: "Como funciona o Histórico",
-    explicacao: "O Histórico reúne, em ordem, tudo que já aconteceu nas suas finanças: despesas pagas, receitas recebidas e parcelas quitadas — uma espécie de linha do tempo.",
+    explicacao: "O Histórico reúne, mês a mês, as despesas pagas e as pendentes — uma espécie de linha do tempo. Ele abre sempre no mês atual; use as setas para navegar.",
     passos: [
       "Use essa aba quando quiser conferir tudo que já foi movimentado, sem precisar entrar em cada seção separada.",
       "É útil para revisar o mês antes de gerar o relatório em PDF na Home.",
@@ -87,7 +92,7 @@ export function BotaoAjuda({ topico }) {
         <HelpCircle size={15} />
       </button>
       {aberto && (
-        <ModalBase titulo={conteudo.titulo} onFechar={() => setAberto(false)}>
+        <ModalBase titulo={conteudo.titulo} subtitulo="Dúvidas" icone={HelpCircle} onFechar={() => setAberto(false)}>
           <p className="font-body text-sm text-slate-300 leading-relaxed">{conteudo.explicacao}</p>
           <div className="bg-white/[0.03] border border-blue-900/20 rounded-xl p-4 space-y-3">
             <p className="font-mono-c text-[10px] text-slate-400/60 uppercase">Passo a passo</p>

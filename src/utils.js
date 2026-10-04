@@ -13,15 +13,21 @@ export const hojeISO = () => dataLocalISO();
 export const mesAtual = () => dataLocalISO().substring(0, 7);
 
 // Soma meses sem transbordar o fim do mês: 31/01 + 1 mês = 28/02, não 03/03.
+// Aceita valor negativo; o `% 12` duplo existe porque em JS o resto mantém o sinal.
 export const somarMeses = (dataISO, meses) => {
   const [ano, mes, dia] = dataISO.split("-").map(Number);
   const alvoAno = ano + Math.floor((mes - 1 + meses) / 12);
-  const alvoMes = ((mes - 1 + meses) % 12) + 1;
+  const alvoMes = ((((mes - 1 + meses) % 12) + 12) % 12) + 1;
   const ultimoDia = new Date(alvoAno, alvoMes, 0).getDate();
   return `${alvoAno}-${pad2(alvoMes)}-${pad2(Math.min(dia, ultimoDia))}`;
 };
 
-const MESES_ABREV = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+export const somarDias = (dataISO, dias) => {
+  const [ano, mes, dia] = dataISO.split("-").map(Number);
+  return dataLocalISO(new Date(ano, mes - 1, dia + dias));
+};
+
+const MESES_ABREV =["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
 export const nomeMesAbrev = (mesISO) => {

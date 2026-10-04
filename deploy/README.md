@@ -72,6 +72,10 @@ tipo *sensitive*: elas nunca passam pelo GitHub.
 > do `.gitignore`. Desfaça essa mudança antes de commitar: o `.env*` passaria a ignorar
 > o `.env.example`.
 
+> Os **previews** são protegidos pela Vercel: abri-los exige estar logado na conta dona
+> do projeto, ou gerar um link pelo botão **Share** do deployment. Com as `VITE_*`
+> marcadas só em Production, o preview sobe sem as chaves e abre em **tela branca**.
+
 **Deu certo se:** depois de um push no `dev`, o job **Deploy** do CI fica verde e o
 resumo da execução mostra a URL do preview. Para publicar sem commit novo: aba
 **Actions → CI → Run workflow**, escolhendo `main` (produção) ou `dev` (preview).

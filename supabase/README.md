@@ -109,7 +109,12 @@ INSERT INTO public.codigos_acesso (codigo, descricao)
 SELECT public.gerar_token_aleatorio(), 'Lote inicial'
 FROM generate_series(1, 10);
 
--- Ver todos
+-- Ver os tokens numerados, para copiar e distribuir
+SELECT lpad(id::text, 2, '0') AS "#", codigo AS "Token", ativo AS "Disponível"
+FROM public.codigos_acesso
+ORDER BY id;
+
+-- Ver todos, com quem usou e quando
 SELECT codigo, ativo, usado_por, usado_em FROM public.codigos_acesso ORDER BY id;
 
 -- Ver só disponíveis
@@ -144,9 +149,18 @@ O primeiro admin é promovido à mão, depois de criar a conta pelo app:
 UPDATE profiles SET is_admin = TRUE WHERE email = 'coloque-seu-email-aqui';
 ```
 
+**Deu certo se:** a aba **Usuários** aparece no app depois de sair e entrar de novo.
+
 Dali em diante, promover e rebaixar passa pelo painel do app, que chama a função
-`toggle_user_admin` (`SECURITY DEFINER`, com a checagem de permissão dentro dela). Ela
-impede o último admin de se rebaixar.
+`toggle_user_admin` (`SECURITY DEFINER`, com a checagem de permissão dentro dela —
+esconder o botão na tela não é controle de acesso). Ela impede o último admin de se
+rebaixar. Para não perder o acesso se perder a conta, deixe **uma segunda conta como
+admin** (pelo painel, ou em Table Editor → `profiles` → `is_admin = true`).
+
+> ⚠️ **O RLS não avisa quando bloqueia**: um `UPDATE` ou `DELETE` barrado por política
+> responde sucesso com 0 linhas afetadas. Código novo confirma a mudança pelo retorno do
+> banco (`.select()` no update, ou a função devolvendo o valor efetivo), nunca pela
+> ausência de erro.
 
 ---
 

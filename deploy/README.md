@@ -49,9 +49,20 @@ variables → Actions → New repository secret**.
 
 | Secret | Onde pegar |
 |---|---|
-| `VERCEL_TOKEN` | vercel.com → avatar → **Account Settings → Tokens → Create**. Escopo: o time/conta do projeto. Copie na hora: ele não aparece de novo |
+| `VERCEL_TOKEN` | vercel.com → avatar → **Account Settings → Tokens → Create**. Em **Scope**, clique no time dono do projeto e, na lista de projetos que abre, escolha **All Projects**. Um token de um projeto só (escopo `nome-do-projeto`) é barrado pelo CLI com `You are not authorized`. Copie na hora: ele não aparece de novo |
 | `VERCEL_ORG_ID` | O **dono do projeto** na Vercel. Mesmo em conta pessoal, a Vercel cria um time padrão ("…'s projects"), e o ID dele começa com **`team_`**. Rode `npx vercel link` no projeto: o `orgId` está em `.vercel/project.json` ou `.vercel/repo.json` (ignorados pelo git). **Não** use o ID de *Account Settings*: esse é o do usuário, e o deploy falha com `Project not found` |
 | `VERCEL_PROJECT_ID` | O `projectId` (começa com **`prj_`**) do mesmo arquivo. Ou: projeto na Vercel → **Settings → General → Project ID** |
+
+**Para conferir o token antes de salvar** (numa pasta vazia, fora do projeto):
+
+```powershell
+$env:VERCEL_ORG_ID = 'team_...'
+$env:VERCEL_PROJECT_ID = 'prj_...'
+npx vercel project inspect nome-do-projeto --token SEU_TOKEN
+```
+
+**Deu certo se** aparecer `Found Project`. `You are not authorized` = escopo errado do
+token; `Could not retrieve Project Settings` no CI = mesmo problema.
 
 As `VITE_*` continuam nas **Environment Variables** da Vercel, marcadas para
 **Production** e **Preview** — o build roda na Vercel e as recebe de lá. Podem ser do

@@ -31,11 +31,11 @@ const bancoInicial = () => ({
 })
 
 // Leitura paginada devolve a tabela; o resto cai no `escrita` de cada teste.
-const criarCliente = ({ banco = bancoInicial(), escrita = () => undefined } = {}) => criarSupabaseFalso({
+const criarCliente = ({ banco = bancoInicial(), escrita = () => undefined, admin = false } = {}) => criarSupabaseFalso({
   sessao: sessaoDeTeste({ id: USUARIO }),
   responder: (c) => {
     if (c.tabela && c.tem('range')) return { data: banco[c.tabela] ?? [], error: null }
-    if (c.tabela === 'profiles' && c.tem('maybeSingle')) return { data: { is_admin: false }, error: null }
+    if (c.tabela === 'profiles' && c.tem('maybeSingle')) return { data: { is_admin: admin }, error: null }
     return escrita(c)
   },
 })
@@ -278,6 +278,66 @@ describe('App com o Supabase mockado', () => {
       expect(modal.textContent).toContain('Já está nesse valor.')
       expect(within(modal).getAllByRole('button', { name: 'Registrar saldo atual' }).at(-1).disabled).toBe(true)
       expect(estado.cliente.na('receitas', 'insert')).toEqual([])
+    })
+  })
+
+  describe('painel de novidades (admin)', () => {
+    const PERFIS = [{ id: USUARIO, nome: 'Teste', email: 'teste@example.com', is_admin: true, created_at: '2026-01-01T00:00:00Z' }]
+    // Tabela de novidades vazia, como numa instalação nova. `publicar` decide o retorno do upsert.
+    const banco = (publicar) => (c) => {
+      if (c.tabela === 'profiles' && c.tem('order')) return { data: PERFIS, error: null }
+      if (c.tabela === 'novidades' && c.tem('maybeSingle')) return { data: null, error: null }
+      if (c.tabela === 'novidades' && c.tem('upsert')) return publicar(c)
+      if (c.tabela === 'novidades' && c.tem('update')) return { data: [], error: null }
+      return undefined
+    }
+    const abrirPainel = async () => {
+      await user.click(screen.getByRole('button', { name: 'Usuários' }))
+      return screen.findByRole('heading', { name: /Gerenciar Novidades/ })
+    }
+    const preencherEPublicar = async (versao) => {
+      await user.type(screen.getByPlaceholderText(/Nova novidade/), 'Item fictício{Enter}')
+      await user.type(screen.getByPlaceholderText('ex: v4'), versao)
+      await user.click(screen.getByRole('button', { name: 'Publicar novidades' }))
+    }
+
+    it('abre com a tabela vazia sem erro, lendo com maybeSingle', async () => {
+      estado.cliente = criarCliente({ admin: true, escrita: banco(() => undefined) })
+      await abrirApp()
+      await abrirPainel()
+
+      expect(await screen.findByText('Nenhum item ainda.')).toBeTruthy()
+      expect(screen.queryByText(/Erro/)).toBeNull()
+      const leituras = estado.cliente.na('novidades', 'select').filter(c => !c.tem('upsert'))
+      expect(leituras.length).toBeGreaterThanOrEqual(2)
+      expect(leituras.every(c => c.tem('maybeSingle') && !c.tem('single'))).toBe(true)
+    })
+
+    it('grava a versão nova antes de desativar as outras, com a versão aparada', async () => {
+      estado.cliente = criarCliente({
+        admin: true,
+        escrita: banco((c) => ({ data: [{ id: 'n1', ...c.args('upsert')[0] }], error: null })),
+      })
+      await abrirApp()
+      await abrirPainel()
+      await preencherEPublicar(' v5 ')
+
+      expect(await screen.findByText(/Salvo! Todos os usuários/)).toBeTruthy()
+      const escritas = estado.cliente.chamadas.filter(c => c.tabela === 'novidades' && (c.tem('upsert') || c.tem('update')))
+      expect(escritas.map(c => (c.tem('upsert') ? 'upsert' : 'update'))).toEqual(['upsert', 'update'])
+      expect(escritas[0].args('upsert')[0]).toMatchObject({ versao: 'v5', ativo: true })
+      expect(escritas[0].tem('select')).toBe(true)
+      expect(escritas[1].args('neq')).toEqual(['versao', 'v5'])
+    })
+
+    it('gravação barrada (0 linhas) avisa e não desativa as versões anteriores', async () => {
+      estado.cliente = criarCliente({ admin: true, escrita: banco(() => ({ data: [], error: null })) })
+      await abrirApp()
+      await abrirPainel()
+      await preencherEPublicar('v5')
+
+      expect(await screen.findByText(/a versão não foi gravada/)).toBeTruthy()
+      expect(estado.cliente.na('novidades', 'update')).toEqual([])
     })
   })
 

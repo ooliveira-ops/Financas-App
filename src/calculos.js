@@ -74,14 +74,21 @@ export const composicaoSaldoInicial = ({ receitas, pagas, pendentes, mes }) => {
 
 // ── VENCIMENTOS ──────────────────────────────────────────────────────────────────
 
-// Dias até o próximo vencimento de cada assinatura, do mais próximo ao mais distante.
+// Dias até o próximo vencimento de cada assinatura, do mais próximo ao mais distante. O
+// dia escolhido é limitado ao último dia do mês, como na geração da despesa: uma
+// assinatura do dia 31 vence em 30/04 e em 28/02.
 export const proximasAssinaturas = (assinaturas, hoje) => {
   const [ano, mes, diaHoje] = hoje.split("-").map(Number);
   const diasNoMes = new Date(ano, mes, 0).getDate();
+  const diasNoProximo = new Date(ano, mes + 1, 0).getDate();
   return [...assinaturas]
     .map(a => {
       const dia = parseInt(a.dia_vencimento || 5);
-      return { ...a, diasRestantes: dia >= diaHoje ? dia - diaHoje : diasNoMes - diaHoje + dia };
+      const nesteMes = Math.min(dia, diasNoMes);
+      const diasRestantes = nesteMes >= diaHoje
+        ? nesteMes - diaHoje
+        : diasNoMes - diaHoje + Math.min(dia, diasNoProximo);
+      return { ...a, diasRestantes };
     })
     .sort((a, b) => a.diasRestantes - b.diasRestantes);
 };

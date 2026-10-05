@@ -817,8 +817,10 @@ function PainelNovidades() {
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
 
+  // A tabela começa vazia numa instalação nova: `.maybeSingle()` devolve null em vez de erro.
   const carregar = async () => {
-    const { data } = await supabase.from("novidades").select("*").order("created_at", { ascending: false }).limit(1).single();
+    const { data, error } = await supabase.from("novidades").select("*").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) return setMsg("Erro ao carregar as novidades: " + error.message);
     if (data) {
       const itens = typeof data.itens === "string" ? JSON.parse(data.itens) : data.itens;
       setNovidades(itens);
@@ -837,20 +839,27 @@ function PainelNovidades() {
 
   const removerItem = (i) => setNovidades(prev => prev.filter((_, idx) => idx !== i));
 
+  // Grava a versão nova antes de desativar as outras: se a gravação falhar, a anterior
+  // continua no ar. As duas escritas são conferidas pelo retorno, porque o RLS barra sem
+  // devolver erro.
   const salvar = async () => {
-    if (!novaVersao.trim() || novidades.length === 0) return;
+    const v = novaVersao.trim();
+    if (!v || novidades.length === 0) return;
     setSalvando(true); setMsg("");
-    // Desativa todas as versões anteriores
-    await supabase.from("novidades").update({ ativo: false }).neq("versao", novaVersao);
-    // Upsert da nova versão
-    const { error } = await supabase.from("novidades").upsert({
-      versao: novaVersao.trim(),
+    const { data: publicada, error } = await supabase.from("novidades").upsert({
+      versao: v,
       itens: JSON.stringify(novidades),
       ativo: true,
-    }, { onConflict: "versao" });
+    }, { onConflict: "versao" }).select();
+    if (error || !publicada?.length) {
+      setSalvando(false);
+      return setMsg("Erro: " + (error?.message || "a versão não foi gravada. Confira se esta conta é admin."));
+    }
+    const { error: erroAnteriores } = await supabase.from("novidades").update({ ativo: false }).neq("versao", v).select();
     setSalvando(false);
-    if (error) setMsg("Erro: " + error.message);
-    else { setMsg("✔︎ Salvo! Todos os usuários verão na próxima abertura."); setVersao(novaVersao); }
+    setVersao(v); setNovaVersao(v);
+    if (erroAnteriores) return setMsg("Publicada, mas as versões anteriores continuam ativas: " + erroAnteriores.message);
+    setMsg("✔︎ Salvo! Todos os usuários verão na próxima abertura.");
   };
 
   return (

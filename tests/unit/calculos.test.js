@@ -7,6 +7,7 @@ import {
   resumoGrupo, separarPorStatus, somaValores, textoParcela, totaisPagoPendente,
   estaConcluido, podeConcluir, separarParcelamentos, saldoBruto, ajusteParaSaldo,
 } from '../../src/calculos.js'
+import { somarDias, somarMeses } from '../../src/utils.js'
 
 let proximoId = 1
 const despesa = (campos = {}) => ({
@@ -195,6 +196,33 @@ describe('proximasAssinaturas', () => {
   it('usa o tamanho do mês corrente, inclusive fevereiro', () => {
     expect(proximasAssinaturas([{ id: 'x', dia_vencimento: 1 }], '2026-02-28')[0].diasRestantes).toBe(1)
     expect(proximasAssinaturas([{ id: 'x', dia_vencimento: 1 }], '2024-02-28')[0].diasRestantes).toBe(2)
+  })
+
+  it.each([
+    ['2026-04-30', 31, 0, 'dia 31 em mês de 30 dias vence hoje, no dia 30'],
+    ['2026-02-10', 30, 18, 'dia 30 em fevereiro vence no dia 28'],
+    ['2024-02-28', 31, 1, 'dia 31 em fevereiro bissexto vence no dia 29'],
+    ['2026-01-31', 30, 28, 'passado o dia 30, o próximo é em 28/02'],
+    ['2026-12-31', 5, 5, 'virada do ano'],
+  ])('%s, vencimento no dia %i: %i dias (%s)', (hoje, dia, esperado) => {
+    expect(proximasAssinaturas([{ id: 'x', dia_vencimento: dia }], hoje)[0].diasRestantes).toBe(esperado)
+  })
+
+  it('a contagem sempre chega na data da despesa que o app gera', () => {
+    for (let d = new Date(2026, 0, 1); d.getFullYear() === 2026; d.setDate(d.getDate() + 1)) {
+      const hoje = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const mes = hoje.slice(0, 7)
+      const proximoMes = somarMeses(`${mes}-01`, 1).slice(0, 7)
+      for (let dia = 1; dia <= 31; dia++) {
+        const a = { nome: 'Assinatura', valor: 10, dia_vencimento: dia }
+        const { diasRestantes } = proximasAssinaturas([a], hoje)[0]
+        const [desteMes] = despesasDeAssinaturas([a], [], mes, 'u')
+        const vencimento = desteMes.data_vencimento >= hoje
+          ? desteMes.data_vencimento
+          : despesasDeAssinaturas([a], [], proximoMes, 'u')[0].data_vencimento
+        expect(somarDias(hoje, diasRestantes), `${hoje}, dia ${dia}`).toBe(vencimento)
+      }
+    }
   })
 
   it('sem dia informado assume o dia 5', () => {
